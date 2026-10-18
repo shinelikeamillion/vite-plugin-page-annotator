@@ -6,6 +6,8 @@
 
 只在 `vite dev` 下生效，`vite build` 的产物里没有它的任何代码。
 
+![标注一个按钮：标注框显示元素的源码位置和修改需求](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/annotate.png)
+
 ## 环境要求
 
 - Vite 8 及以上（用 Vite 自带的 `parseAst` 解析 JSX/TSX，加上 `data-loc`）
@@ -51,6 +53,9 @@ export default defineConfig({
 4. 鼠标悬停可以看到元素和它的源码位置，点击选中。写下要怎么改，按 **Enter** 保存（**Shift+Enter** 换行）。需要的话勾选「附带元素截图」。
 5. 选错了？用 **↑ / ↓** 切换到父元素或子元素（输入框里已有文字时用 **⌥↑ / ⌥↓**）。
 6. 想加几条就加几条。点工具栏上的「N 条」可以查看、修改、删除。
+
+   ![草稿列表：三条标注，其中一条带截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/drafts.png)
+
 7. 点「发送」。标注写入队列，同时修复 prompt（含 JSON）和截图会复制到剪贴板。
 8. 交给 AI：直接粘贴，或者让它通过 MCP 读取队列（见下文）。
 
@@ -63,6 +68,16 @@ export default defineConfig({
 | Enter / Shift+Enter | 保存 / 换行 |
 | 拖动 ⠿ | 移动工具栏，双击复位 |
 | 右键 ⠿ | 设置：语言、修复 prompt、默认截图、历史记录 |
+
+### 设置和历史
+
+右键工具栏左边的 ⠿ 打开设置面板。「历史」页列出所有发送过的标注，带状态和截图。
+
+| 设置 | 历史 |
+| --- | --- |
+| ![设置面板：语言、修复 prompt、默认截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/settings.png) | ![历史页：待处理和已完成的标注](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/history.png) |
+
+（截图里的界面是英文，可以在设置里切换成中文。）
 
 ### 自定义修复 prompt
 
@@ -151,6 +166,8 @@ npm run check     # 语法检查
 npm test          # store 测试
 npm run test:mod  # Claude Code 插件测试
 ```
+
+`example/` 是一个接好插件的 React 落地页示例（`cd example && npm install && npm run dev`），上面的截图就来自它。
 
 ## License
 

@@ -6,6 +6,8 @@ Click elements on your Vite dev page, write what should change, and hand the lis
 
 It only runs under `vite dev`. A `vite build` output contains nothing from it.
 
+![Annotating a button: the popover shows the element's source location and the note](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/annotate.png)
+
 ## Requirements
 
 - Vite 8 or later (JSX/TSX is parsed with Vite's own `parseAst` to add `data-loc`)
@@ -51,6 +53,9 @@ Add the data folder to `.gitignore`:
 4. Hover to see the element and its source location, then click it. Write what should change and press **Enter** to save (**Shift+Enter** for a new line). Tick *Attach element screenshot* if a picture helps.
 5. Wrong element? Use **↑ / ↓** to move to the parent or child (with **⌥↑ / ⌥↓** once you've typed something).
 6. Add as many as you like. Click **N items** on the toolbar to review, edit or delete them.
+
+   ![The drafts list with three annotations, one with a screenshot](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/drafts.png)
+
 7. Click **Send**. The annotations go to the queue, and the fix prompt (with the JSON) plus the screenshots are copied to the clipboard.
 8. Give it to your agent: paste, or let it read the queue over MCP (see below).
 
@@ -63,6 +68,14 @@ Add the data folder to `.gitignore`:
 | Enter / Shift+Enter | Save / new line |
 | Drag ⠿ | Move the toolbar; double-click to reset |
 | Right-click ⠿ | Settings: language, fix prompt, screenshot default, history |
+
+### Settings and history
+
+Right-click the ⠿ grip to open the settings panel. The *History* tab lists everything you sent, with its status and screenshot.
+
+| Settings | History |
+| --- | --- |
+| ![Settings panel: language, fix prompt, screenshot default](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/settings.png) | ![History tab with open and done annotations](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/history.png) |
 
 ### Custom fix prompt
 
@@ -151,6 +164,8 @@ npm run check     # syntax check
 npm test          # store tests
 npm run test:mod  # Claude Code plugin tests
 ```
+
+`example/` is a small React landing page wired up with the plugin (`cd example && npm install && npm run dev`). The screenshots above come from it.
 
 ## License
 
