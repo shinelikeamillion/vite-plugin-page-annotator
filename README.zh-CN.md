@@ -45,6 +45,58 @@
 
 ---
 
+## 按项目框架配置：Vite 与 Next.js
+
+根据项目使用的框架选择对应包。两种集成都把标注写入项目根目录的 `.page-annotator/`，请将此目录加入 `.gitignore`。
+
+### Vite
+
+安装 `vite-plugin-page-annotator`，并把 `pageAnnotator()` 放在 Vite 插件列表第一位，排在 React 等框架插件之前：
+
+```js
+import { defineConfig } from 'vite';
+import { pageAnnotator } from 'vite-plugin-page-annotator';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [pageAnnotator({ lang: 'zh' }), react()],
+});
+```
+
+### Next.js（App Router 或 Pages Router）
+
+配套包名为 `next-page-annotator`，代码位于 [`packages/next`](packages/next/README.md)。它通过 API 路由提供服务端接口，并在开发时挂载标注 UI；不需要 Vite 配置。
+
+该包目前在本 GitHub 仓库中，尚未发布到 npm。要试用本地检出版本，可在 Next.js 项目中安装本地包目录：
+
+```bash
+npm install --save-dev /path/to/vite-plugin-page-annotator/packages/next
+```
+
+发布到 npm 后，再改用 `npm install --save-dev next-page-annotator` 按包名安装。
+
+**App Router**：创建 `app/api/__annotator/[...path]/route.ts`：
+
+```ts
+import { createAnnotatorHandler } from 'next-page-annotator/server';
+
+export const { GET, POST } = createAnnotatorHandler({ lang: 'zh' });
+```
+
+然后在 `app/layout.tsx` 中挂载组件：
+
+```tsx
+import { PageAnnotator } from 'next-page-annotator';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="zh"><body>{children}<PageAnnotator lang="zh" /></body></html>;
+}
+```
+
+**Pages Router**：创建 `pages/api/__annotator/[...path].ts`，并从 `next-page-annotator/server` 导出 `createPagesApiHandler()`。将 `.page-annotator/` 加入 `.gitignore`，启动 Next.js 开发服务器后，按 **⌘⇧2**（Windows/Linux 为 **Ctrl+Shift+2**）显示或隐藏工具栏。完整步骤见 [Next.js 包使用指南](packages/next/README.md)。
+
+---
+
 ## 与 Claude Code & Codex 无缝连接
 
 `vite-plugin-page-annotator` 专为「浏览器预览 ⇄ 终端 AI 编程代理」的高频修改闭环打造。提供三种无缝衔接方式，共享同一个 `.page-annotator/` 本地队列：

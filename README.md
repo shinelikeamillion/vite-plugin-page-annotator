@@ -45,6 +45,58 @@ Please integrate `vite-plugin-page-annotator` into this Vite project so I can an
 
 ---
 
+## Framework Setup: Vite and Next.js
+
+Choose the package for your app's framework. Both integrations write annotations to the same `.page-annotator/` project folder; add that folder to `.gitignore`.
+
+### Vite
+
+Install `vite-plugin-page-annotator` and put `pageAnnotator()` first in your Vite plugin list, before React or other framework plugins:
+
+```js
+import { defineConfig } from 'vite';
+import { pageAnnotator } from 'vite-plugin-page-annotator';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig({
+  plugins: [pageAnnotator(), react()],
+});
+```
+
+### Next.js (App Router or Pages Router)
+
+The companion package is `next-page-annotator` in [`packages/next`](packages/next/README.md). It adds an API route and a development-only UI component; it does not require a Vite config.
+
+The package is currently in this GitHub repository and has not yet been published to npm. To try a local checkout, install the package directory from your Next.js app:
+
+```bash
+npm install --save-dev /path/to/vite-plugin-page-annotator/packages/next
+```
+
+After the package is published, install it by name with `npm install --save-dev next-page-annotator`.
+
+For the **App Router**, create `app/api/__annotator/[...path]/route.ts`:
+
+```ts
+import { createAnnotatorHandler } from 'next-page-annotator/server';
+
+export const { GET, POST } = createAnnotatorHandler({ lang: 'en' });
+```
+
+Then mount the component in `app/layout.tsx`:
+
+```tsx
+import { PageAnnotator } from 'next-page-annotator';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="en"><body>{children}<PageAnnotator /></body></html>;
+}
+```
+
+For the **Pages Router**, create `pages/api/__annotator/[...path].ts` and export `createPagesApiHandler()` from `next-page-annotator/server`. Add `.page-annotator/` to `.gitignore`, then run the Next.js dev server and press **⌘⇧2** (**Ctrl+Shift+2** on Windows/Linux) to show or hide the toolbar. See the [Next.js package guide](packages/next/README.md) for the full setup.
+
+---
+
 ## Seamless Connection with Claude Code & Codex
 
 `vite-plugin-page-annotator` is designed specifically for the tight visual feedback loop between your browser preview and terminal coding agents. Pick the hand-off workflow that fits how you work—all three share the same `.page-annotator/` queue:
