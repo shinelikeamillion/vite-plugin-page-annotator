@@ -111,7 +111,7 @@ args = ["page-annotator-mcp", "--root", "/path/to/your/project"]
 
 ### 选择发给谁（Claude Code / Codex）
 
-每个运行中的 `page-annotator-mcp` 会把自己登记到 `.page-annotator/agents/`（根据 MCP `clientInfo` 识别：`claude-code` → `claude`，`codex-mcp-client` → `codex`；可用 `--agent <id>` 或 `PAGE_ANNOTATOR_AGENT` 指定）。只要有工具在线，工具栏「发送」旁就会出现选择框（`→ Claude` / `→ Codex`，记住上次的选择），每次发送都带上这个 target：
+每个运行中的 `page-annotator-mcp` 会把自己登记到 `.page-annotator/agents/`（根据 MCP `clientInfo` 识别：`claude-code` → `claude`，`codex-mcp-client` → `codex`；可用 `--agent <id>` 或 `PAGE_ANNOTATOR_AGENT` 指定）。默认自动发给最近在用的工具（最近新开会话、或最近调用过标注工具的那个），在哪个工具里处理标注，后面的标注就跟到哪个，不用手动选。想固定发给某一个工具，在设置（右键 `⠿`）的「发送给」里选，默认是「自动」。每次发送都带上这个 target：
 
 - `get_page_annotations` 只返回发给当前工具的标注，以及没有 target 的标注（发送时没有工具在线）。
 - `page-annotator-inbox` 插件只把发给 `claude`（或没有 target）的标注填进 Claude Code 输入框。

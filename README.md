@@ -111,7 +111,7 @@ Once configured, simply tell Claude Code or Codex:
 
 ### Choosing Who Gets the Annotations (Claude Code vs Codex)
 
-Each running `page-annotator-mcp` registers its client in `.page-annotator/agents/` (detected from the MCP `clientInfo`, e.g. `claude-code` → `claude`, `codex-mcp-client` → `codex`; override with `--agent <id>` or `PAGE_ANNOTATOR_AGENT`). When at least one agent is online, the toolbar shows a picker next to **Send** (`→ Claude` / `→ Codex`, the last pick is remembered). Each send is tagged with that target:
+Each running `page-annotator-mcp` registers its client in `.page-annotator/agents/` (detected from the MCP `clientInfo`, e.g. `claude-code` → `claude`, `codex-mcp-client` → `codex`; override with `--agent <id>` or `PAGE_ANNOTATOR_AGENT`). Each send goes to the agent used most recently (the newest session, or the last one to call an annotation tool), so the batch follows whichever tool you are working in without picking anything. To always send to one tool, pick it under **Send to** in Settings (right-click `⠿`); the default is **Auto**. Each send is tagged with that target:
 
 - `get_page_annotations` only returns annotations sent to the calling agent, or ones sent with no target (no agent online at the time).
 - The `page-annotator-inbox` plugin only fills the Claude Code prompt box for sends targeted at `claude` (or untargeted).

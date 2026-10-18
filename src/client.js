@@ -31,7 +31,8 @@
       tabSettings: '设置', tabHistory: '历史', hAll: '全部', hPending: '待处理', hDone: '已完成', hEmpty: '没有记录',
       hLoadFail: (m) => `读取历史失败：${m}`, st_pending: '待处理', st_delivered: '已读取', st_done: '已完成',
       hHelp: '已发送的标注，存在项目根目录 .page-annotator/（已完成的保留最近 200 条）', refresh: '刷新',
-      targetTip: '发给哪个工具：只有选中的工具能通过 MCP 读到这批标注', sentTo: (name) => `→ ${name}`,
+      targetLabel: '发送给', targetHelp: '自动：发给最近在用的工具（最近新开会话、或最近处理过标注的那个）。只有收到的工具能通过 MCP 读到这批标注',
+      sentTo: (name) => `→ ${name}`, auto: (name) => (name ? `自动（现在是 ${name}）` : '自动（暂无在线工具）'), offline: (name) => `${name}（不在线）`,
     },
     en: {
       notePh: 'What should change here? Enter to save, Shift+Enter for a new line, ⌘+Enter to send', shotOpt: 'Attach element screenshot',
@@ -51,7 +52,8 @@
       tabSettings: 'Settings', tabHistory: 'History', hAll: 'All', hPending: 'Open', hDone: 'Done', hEmpty: 'Nothing here',
       hLoadFail: (m) => `Could not load history: ${m}`, st_pending: 'open', st_delivered: 'read', st_done: 'done',
       hHelp: 'Sent annotations, kept in .page-annotator/ at the project root (the latest 200 done ones)', refresh: 'Refresh',
-      targetTip: 'Who gets these annotations: only the picked tool can read them over MCP', sentTo: (name) => `→ ${name}`,
+      targetLabel: 'Send to', targetHelp: 'Auto: the tool used most recently (newest session, or the last one to handle annotations). Only the receiving tool can read the batch over MCP',
+      sentTo: (name) => `→ ${name}`, auto: (name) => (name ? `Auto (now ${name})` : 'Auto (no tool online)'), offline: (name) => `${name} (offline)`,
     },
   };
   /** @type {{ lang: 'zh'|'en', prompts: Record<string, string> }} prompts: custom template per language */
@@ -106,8 +108,6 @@
   .bar > * { white-space: nowrap; flex: none; box-sizing: border-box; }
   .bar .count { cursor: pointer; border-radius: 6px; padding: 5px 6px; }
   .bar .count:hover, .bar .count.open { background: #2a2738; color: #e9e6ff; }
-  .bar .target { background: #12111a; color: #e9e6ff; border: 1px solid #353146; border-radius: 6px; padding: 4px 4px; font-size: 12px; max-width: 110px; cursor: pointer; }
-  .bar .target[hidden] { display: none; }
   .list { position: fixed; right: 16px; bottom: 64px; width: 360px; max-height: min(60vh, 520px); overflow: auto; pointer-events: auto; background: #1d1b26; color: #e9e6ff;
     border-radius: 10px; border: 1px solid #353146; box-shadow: 0 10px 30px rgba(0,0,0,.45); padding: 6px; }
   .list .empty { font-size: 12px; color: #a39fb8; padding: 10px; text-align: center; }
@@ -149,6 +149,8 @@
     font: 12px/1.5 ui-monospace, Menlo, monospace; outline: none; }
   .set-prompt:focus { border-color: #7c5cff; }
   .set-help { color: #8a8796; font-size: 11px; margin-top: 4px; line-height: 1.5; }
+  .set-target-help { margin: -6px 0 12px; }
+  .set-row .set-target { max-width: 60%; }
   .toast { position: fixed; right: 16px; bottom: 64px; background: #1d1b26; color: #e9e6ff; font-size: 12px; padding: 8px 12px; border-radius: 8px; border: 1px solid #353146; max-width: 360px; }
   .toast.err { border-color: #ff6b6b; color: #ffb3b3; }
   [hidden] { display: none !important; }
@@ -186,6 +188,8 @@
   <label class="set-row"><span data-t="lang"></span>
     <select class="set-lang"><option value="en">English</option><option value="zh">中文</option></select>
   </label>
+  <label class="set-row"><span data-t="targetLabel"></span><select class="set-target"></select></label>
+  <div class="set-help set-target-help" data-t="targetHelp"></div>
   <div class="set-label" data-t="promptLabel"></div>
   <textarea class="set-prompt" spellcheck="false"></textarea>
   <div class="set-help" data-t="promptHelp"></div>
@@ -198,7 +202,6 @@
   <button class="toggle" data-t="toggle" data-t-title="toggleTip"></button>
   <span class="count" data-t-title="countTip"></span>
   <button class="clear" data-t="clear" data-t-title="clearTip"></button>
-  <select class="target" data-t-title="targetTip" hidden></select>
   <button class="primary send" data-t="send" data-t-title="sendTip"></button>
 </div>
 <div class="toast" hidden></div>`;
@@ -213,7 +216,7 @@
   const $ = (s) => root.querySelector(s);
   const hl = $('.hl'), hlLabel = $('.hl-label'), pins = $('.pins'), outlines = $('.outlines');
   const pop = $('.pop'), popMeta = $('.pop .meta'), popText = $('.pop textarea');
-  const btnToggle = $('.toggle'), btnSend = $('.send'), btnClear = $('.clear'), count = $('.count'), targetSel = $('.target');
+  const btnToggle = $('.toggle'), btnSend = $('.send'), btnClear = $('.clear'), count = $('.count'), targetSel = $('.set-target');
   const toastEl = $('.toast'), list = $('.list');
   const shotCheck = $('.shot-check');
   try { shotCheck.checked = localStorage.getItem(SHOT_PREF_KEY) === '1'; } catch { /* storage off */ }
@@ -627,6 +630,8 @@
   }
 
   // ---------- target: which online agent (Claude Code, Codex, ...) gets the next send ----------
+  // Auto (the default) sends to the agent used most recently: the server lists agents by
+  // their last session start / annotation tool call. A fixed pick lives in the settings panel.
   const AGENTS_URL = ENDPOINT.replace(/\/submit$/, '/agents');
   const AGENT_NAMES = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' };
   const agentName = (id) => AGENT_NAMES[id] || id;
@@ -636,27 +641,35 @@
   try { pickedTarget = localStorage.getItem(TARGET_KEY); } catch { /* storage off */ }
 
   function renderTargets() {
-    const ids = agents.map((a) => a.agent);
+    const ids = agents.map((a) => a.agent); // most recently used first
     const key = ids.join(',');
     if (key === lastAgentsKey) return;
     lastAgentsKey = key;
-    // no agent online: send to whoever reads first, as before
-    targetSel.hidden = !ids.length;
-    const keep = ids.includes(targetSel.value) ? targetSel.value : ids.includes(pickedTarget) ? pickedTarget : ids[0];
-    targetSel.replaceChildren(...ids.map((id) => {
+    const option = (value, label) => {
       const o = document.createElement('option');
-      o.value = id;
-      o.textContent = t('sentTo', agentName(id));
+      o.value = value;
+      o.textContent = label;
       return o;
-    }));
-    if (keep) targetSel.value = keep;
-    placeBar();
+    };
+    const shown = pickedTarget && !ids.includes(pickedTarget) ? [...ids, pickedTarget] : ids;
+    targetSel.replaceChildren(
+      option('', t('auto', ids[0] && agentName(ids[0]))),
+      ...shown.map((id) => option(id, ids.includes(id) ? agentName(id) : t('offline', agentName(id)))),
+    );
+    targetSel.value = pickedTarget || '';
   }
   targetSel.addEventListener('change', () => {
-    pickedTarget = targetSel.value;
-    try { localStorage.setItem(TARGET_KEY, pickedTarget); } catch { /* storage off */ }
+    pickedTarget = targetSel.value || null;
+    try {
+      if (pickedTarget) localStorage.setItem(TARGET_KEY, pickedTarget);
+      else localStorage.removeItem(TARGET_KEY);
+    } catch { /* storage off */ }
   });
-  const currentTarget = () => (targetSel.hidden ? undefined : targetSel.value || undefined);
+  // a pinned agent that is offline falls back to auto; no agent online: no target, whoever reads first gets it
+  const currentTarget = () => {
+    const ids = agents.map((a) => a.agent);
+    return ids.includes(pickedTarget) ? pickedTarget : ids[0];
+  };
 
   async function refreshAgents() {
     if (!enabled || document.hidden) return;
@@ -759,9 +772,11 @@
     sending = true;
     btnSend.disabled = true;
     const sent = items.slice();
-    const target = currentTarget();
+    let target;
     const result = (async () => {
       const shots = await Promise.all(sent.map(shotFor));
+      await refreshAgents(); // pick from who is online right now
+      target = currentTarget();
       const res = await fetch(ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
