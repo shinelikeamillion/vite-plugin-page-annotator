@@ -1,0 +1,76 @@
+# vite-plugin-page-annotator — AI Integration & Usage Guide
+
+> Click elements on your live Vite dev page, write what should change, and send exact JSX source locations (`file:line:column`) plus element screenshots directly to Claude Code or OpenAI Codex via MCP, terminal plugin, or clipboard.
+
+- Repository: https://github.com/shinelikeamillion/vite-plugin-page-annotator
+- Homepage: https://shinelikeamillion.github.io/vite-plugin-page-annotator/
+- License: MIT
+- Requirements: Vite >= 8.0.0, Node.js >= 20.19
+
+## Automatic Project Integration Steps (For AI Coding Agents)
+
+When a user asks you to install or integrate `vite-plugin-page-annotator` into their Vite project, perform the following steps:
+
+### Step 1: Install the devDependency
+Detect the project's package manager (`package-lock.json` -> `npm`, `pnpm-lock.yaml` -> `pnpm`, `yarn.lock` -> `yarn`, `bun.lockb` / `bun.lock` -> `bun`) and install:
+```bash
+npm i -D github:shinelikeamillion/vite-plugin-page-annotator
+```
+
+### Step 2: Register `pageAnnotator()` in `vite.config.ts` / `vite.config.js`
+Import `{ pageAnnotator } from 'vite-plugin-page-annotator'` and place `pageAnnotator()` as the **FIRST** plugin in the `plugins` array (before `@vitejs/plugin-react` or other JSX plugins so Vite's `parseAst` tags JSX opening elements with `data-loc="file:line:column"` before transformation).
+
+Example `vite.config.ts`:
+```ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { pageAnnotator } from 'vite-plugin-page-annotator';
+
+export default defineConfig({
+  plugins: [
+    pageAnnotator({
+      lang: 'en', // or 'zh' for Chinese UI & fix prompts
+      locator: true, // true by default; adds data-loc="file:line:column" to JSX elements
+    }),
+    react(),
+  ],
+});
+```
+
+### Step 3: Update `.gitignore`
+Append `.page-annotator/` to `.gitignore` so local annotation queues, element screenshots, and outbox files are not committed to git.
+
+### Step 4: Configure MCP Server (`page-annotator-mcp`) for Claude Code & Codex
+The package includes a zero-dependency stdio MCP binary `page-annotator-mcp`.
+
+1. **For Claude Code (`.mcp.json` in project root)**:
+   Create or merge `.mcp.json`:
+   ```json
+   {
+     "mcpServers": {
+       "page-annotator": {
+         "command": "npx",
+         "args": ["page-annotator-mcp"]
+       }
+     }
+   }
+   ```
+
+2. **For OpenAI Codex (`~/.codex/config.toml` or `.codex/config.toml`)**:
+   ```toml
+   [mcp_servers.page-annotator]
+   command = "npx"
+   args = ["page-annotator-mcp", "--root", "/absolute/path/to/project"]
+   ```
+
+3. **Optional Claude Code Prompt Auto-Fill Plugin (`page-annotator-inbox`)**:
+   ```bash
+   claude plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator
+   ```
+
+## How Agents Should Handle Page Annotations (MCP Workflow)
+
+When the user says "handle the page annotations", "apply annotations", or "按标注改 / 处理页面标注":
+1. Call the MCP tool `get_page_annotations` (returns pending annotations with `id`, `note`, `loc` (`file:line:column`), optional `text`, `selector`, and `screenshot` image blocks).
+2. Open the source files at `loc` (`file:line:column`) and apply each requested code change.
+3. Call `mark_annotations_done` with `ids: [...]` for all completed annotation IDs.

@@ -1,7 +1,7 @@
 {
   "name": "vite-plugin-page-annotator",
   "version": "0.1.0",
-  "description": "Click elements in your Vite dev page, write what should change, and hand it to Claude Code or Codex as a fix prompt with source locations and screenshots.",
+  "description": "Click elements on your live Vite dev page, write what should change, and send exact JSX source locations (file:line:column) and element screenshots straight to Claude Code or OpenAI Codex via MCP, plugin, or clipboard.",
   "type": "module",
   "license": "MIT",
   "author": "sean liu",
@@ -16,15 +16,23 @@
   "keywords": [
     "vite",
     "vite-plugin",
+    "page-annotator",
     "annotate",
-    "claude-code",
-    "codex",
-    "mcp",
-    "devtools",
     "annotation",
-    "ai",
+    "claude-code",
+    "claude",
+    "codex",
+    "openai-codex",
+    "mcp",
+    "mcp-server",
+    "devtools",
+    "ai-coding",
+    "visual-feedback",
+    "click-to-source",
     "jsx",
-    "react"
+    "react",
+    "preact",
+    "solid"
   ],
   "exports": {
     ".": {

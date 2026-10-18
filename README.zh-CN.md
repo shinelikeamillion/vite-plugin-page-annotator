@@ -1,107 +1,89 @@
 # vite-plugin-page-annotator
 
-[English](README.md) · **简体中文** · [官网](https://shinelikeamillion.github.io/vite-plugin-page-annotator/)
+[English](README.md) · **简体中文** · [官网与在线指南](https://shinelikeamillion.github.io/vite-plugin-page-annotator/?lang=zh) · [AI 索引说明 (`llms.txt`)](https://shinelikeamillion.github.io/vite-plugin-page-annotator/llms.txt)
 
-在 Vite 开发页面上点选元素、写下要改什么，一次交给 Claude Code 或 Codex。每条标注都带源码位置（`文件:行:列`），可以附元素截图，发送时会附上一段现成的修复 prompt。
+**指着浏览器里的页面，直接让 Claude Code 或 Codex 改代码。**
 
-只在 `vite dev` 下生效，`vite build` 的产物里没有它的任何代码。
+不用再用文字费力描述「价格卡片第三列右下角的那个次级按钮」。在 `vite dev` 开发预览时，直接点选页面上的任意元素、写下修改需求，一键把批量标注无缝交给 **Claude Code** 或 **OpenAI Codex**。
+
+每条标注都会自动附带：
+- **精确到行列的 JSX 源码位置**（基于 Vite 原生 AST 解析的 `文件:行:列`），非 JSX 页面自动回退为 CSS Selector
+- **元素文本与上下文**，同一行代码循环渲染多个元素时也能精准区分
+- **可选的元素级截图**，自动保存到本地并随需求一并递交给 AI
+- **开箱即用的修复 Prompt**，支持通过 **MCP 服务**、**Claude Code 输入框自动填充** 或 **系统剪贴板** 零摩擦流转
+
+> **生产构建零侵入：** 仅在 `vite dev` 开发模式下运行，UI 封装在独立的 Shadow DOM 中，绝不污染业务样式；`vite build` 生产产物中不包含任何插件代码。
 
 ![标注一个按钮：标注框显示元素的源码位置和修改需求](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/annotate.png)
 
-## 环境要求
+---
 
-- Vite 8 及以上（用 Vite 自带的 `parseAst` 解析 JSX/TSX，加上 `data-loc`）
-- Node 20.19 及以上
-- 源码定位需要 JSX 框架（React、Preact、Solid 等）。其他页面也能用，只是标注里给的是 CSS selector。
+## 最快上手：复制给 AI 自动集成到项目
 
-## 安装
+不想手动改配置文件？直接复制下面这段话发给 **Claude Code**、**Codex** 或任意 AI 编程助手，让 AI 全自动帮你完成安装、Vite 配置与 MCP 对接：
+
+```text
+请帮我把 `vite-plugin-page-annotator` 集成到当前 Vite 项目中，以便我在浏览器里点选标注元素并直接发给你修改：
+
+1. 使用当前项目的包管理器安装开发依赖：
+   `npm i -D github:shinelikeamillion/vite-plugin-page-annotator`（或对应的 pnpm / yarn / bun 命令）。
+2. 打开 `vite.config.ts` 或 `vite.config.js`，引入 `import { pageAnnotator } from 'vite-plugin-page-annotator'`，并将 `pageAnnotator({ lang: 'zh' })` 放在 `plugins` 数组的【第一个位置】（必须在 `@vitejs/plugin-react` 等框架插件之前，以便在编译前注入 JSX 源码行列位置 `data-loc`）。
+3. 检查 `.gitignore`，如果还没有 `.page-annotator/`，请将其添加进去。
+4. 配置 MCP 服务，让你可以直接读取和标记我的页面标注：
+   - 在项目根目录创建或更新 `.mcp.json`，加入：
+     {
+       "mcpServers": {
+         "page-annotator": {
+           "command": "npx",
+           "args": ["page-annotator-mcp"]
+         }
+       }
+     }
+   - 如果我使用 OpenAI Codex（`~/.codex/config.toml` 或 `.codex/config.toml`），请同时告诉我对应的 `[mcp_servers.page-annotator]` 配置片段（带 `--root` 指向当前项目绝对路径）。
+5. 完成后检查配置是否正常，并提醒我启动开发服务器后按 `Cmd+Shift+2`（Windows/Linux 按 `Ctrl+Shift+2`）呼出页面标注工具栏。
+```
+
+---
+
+## 与 Claude Code & Codex 无缝连接
+
+`vite-plugin-page-annotator` 专为「浏览器预览 ⇄ 终端 AI 编程代理」的高频修改闭环打造。提供三种无缝衔接方式，共享同一个 `.page-annotator/` 本地队列：
+
+| 衔接方式 | 适用场景 | 工作流体验 |
+| --- | --- | --- |
+| **1. Claude Code 输入框直连插件** | Claude Code 重度用户（零粘贴） | 在浏览器里点「发送」，修复 Prompt 自动填入 Claude Code 终端输入框（保留已有草稿），直接按 `Enter` 即可。 |
+| **2. MCP 服务 (`page-annotator-mcp`)** | **Claude Code** 与 **Codex** 原生工具调用 | 对 AI 说一句「处理页面标注」，AI 自动调用 `get_page_annotations` 读取标注与截图、定位源码修改，并自动调用 `mark_annotations_done` 销项。 |
+| **3. 智能剪贴板复制** | 任意 AI 对话、IDE 插件或终端 | 点「发送」后自动复制修复 Prompt（含 JSON）与元素截图。终端里 `⌘V` 粘贴文字，`Ctrl+V` 粘贴截图。 |
+
+### 方式一：直连 Claude Code 输入框（`page-annotator-inbox` 插件）
+
+`page-annotator-inbox` 插件会实时监听项目的发送动作。每次在浏览器点击「发送」，它都会把组装好的修复 Prompt 直接塞进当前 Claude Code 的输入框中，你只需要敲一下回车。
 
 ```bash
-npm i -D github:shinelikeamillion/vite-plugin-page-annotator
+claude plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator
 ```
 
-在 `vite.config.ts` 里加上，放在框架插件前面：
-
-```ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import { pageAnnotator } from 'vite-plugin-page-annotator';
-
-export default defineConfig({
-  plugins: [pageAnnotator({ lang: 'zh' }), react()],
-});
+或者在 Claude Code 会话内直接运行：
+```text
+/plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator
 ```
 
-把数据目录加进 `.gitignore`：
-
-```gitignore
-.page-annotator/
+想免安装直接试用一次？
+```bash
+claude --plugin-dir node_modules/vite-plugin-page-annotator/claude-plugin
 ```
 
-### 选项
+### 方式二：配置 MCP 服务（支持 Claude Code 与 Codex）
 
-| 选项 | 默认值 | 作用 |
-| --- | --- | --- |
-| `lang` | `'en'` | 界面和修复 prompt 的语言，`'en'` 或 `'zh'`。每个人仍可在设置面板里自己切换。 |
-| `locator` | `true` | 给 JSX 元素加 `data-loc`。设为 `false` 时只发送 CSS selector。 |
+包内自带零外部依赖的 stdio MCP 服务 `page-annotator-mcp`，提供三个标准工具：
 
-## 使用教程
-
-1. 运行 `npm run dev`，打开页面。
-2. 按 **⌘⇧2**（Windows/Linux 为 Ctrl+Shift+2）显示工具栏。默认是隐藏的，开关状态会记住。
-3. 在页面任意处 **⌘+点击**（Ctrl+点击），或按 **Alt+A**，进入标注模式。这一下不会选中元素。
-4. 鼠标悬停可以看到元素和它的源码位置，点击选中。写下要怎么改，按 **Enter** 保存（**Shift+Enter** 换行）。需要的话勾选「附带元素截图」。
-5. 选错了？用 **↑ / ↓** 切换到父元素或子元素（输入框里已有文字时用 **⌥↑ / ⌥↓**）。
-6. 想加几条就加几条。点工具栏上的「N 条」可以查看、修改、删除。
-
-   ![草稿列表：三条标注，其中一条带截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/drafts.png)
-
-7. 点「发送」。标注写入队列，同时修复 prompt（含 JSON）和截图会复制到剪贴板。
-8. 交给 AI：直接粘贴，或者让它通过 MCP 读取队列（见下文）。
-
-| 快捷键 | 作用 |
+| MCP 工具 | 作用 |
 | --- | --- |
-| ⌘⇧2 / Ctrl+Shift+2 | 显示 / 隐藏整个工具（状态会记住） |
-| ⌘+点击 / Ctrl+点击、Alt+A | 进入标注模式 |
-| 右键、Esc | 退出标注模式 |
-| ↑ / ↓（⌥↑ / ⌥↓） | 改选父 / 子元素 |
-| Enter / Shift+Enter | 保存 / 换行 |
-| 拖动 ⠿ | 移动工具栏，双击复位 |
-| 右键 ⠿ | 设置：语言、修复 prompt、默认截图、历史记录 |
+| `get_page_annotations` | 获取待处理的页面标注（JSON + 元素截图图像块），并将状态从 `pending` 更新为 `delivered`（已读取）。 |
+| `mark_annotations_done` | 将 AI 已改完的标注 ID 标记为 `done`（已完成），浏览器端历史面板会同步更新状态。 |
+| `clear_page_annotations` | 清空整个标注队列（仅在你明确指令时调用）。 |
 
-### 设置和历史
-
-右键工具栏左边的 ⠿ 打开设置面板。「历史」页列出所有发送过的标注，带状态和截图。
-
-| 设置 | 历史 |
-| --- | --- |
-| ![设置面板：语言、修复 prompt、默认截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/settings.png) | ![历史页：待处理和已完成的标注](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/history.png) |
-
-（截图里的界面是英文，可以在设置里切换成中文。）
-
-### 自定义修复 prompt
-
-可以在设置面板里改写修复 prompt。可用的占位符：`{{count}}` 条数、`{{ids}}` 编号、`{{page}}` 页面地址、`{{json}}` 标注 JSON。没写 `{{json}}` 时，JSON 会自动附在末尾。
-
-## 交给 AI
-
-三种方式任选一种。
-
-### 1. 剪贴板
-
-点「发送」后，直接粘贴到 Claude Code、Codex 或任意对话里。终端里 ⌘V 粘贴文字，Ctrl+V 粘贴截图。
-
-### 2. MCP 服务
-
-包里带了一个没有额外依赖的 stdio MCP 服务 `page-annotator-mcp`，提供三个工具：
-
-| 工具 | 作用 |
-| --- | --- |
-| `get_page_annotations` | 返回已发送的标注（JSON 和截图），并标记为「已读取」 |
-| `mark_annotations_done` | 把 AI 处理完的 id 标记为「已完成」 |
-| `clear_page_annotations` | 清空队列（只在你明确要求时使用） |
-
-Claude Code，在项目根目录的 `.mcp.json`：
+**Claude Code 配置** — 在项目根目录创建 `.mcp.json`：
 
 ```json
 {
@@ -114,7 +96,7 @@ Claude Code，在项目根目录的 `.mcp.json`：
 }
 ```
 
-Codex，在 `~/.codex/config.toml`：
+**OpenAI Codex 配置** — 在 `~/.codex/config.toml`（或项目 `.codex/config.toml`）中添加：
 
 ```toml
 [mcp_servers.page-annotator]
@@ -122,52 +104,138 @@ command = "npx"
 args = ["page-annotator-mcp", "--root", "/path/to/your/project"]
 ```
 
-然后对 AI 说「处理页面标注」。
+*（注：项目根目录按 `--root` 参数 → `$PAGE_ANNOTATOR_ROOT` 环境变量 → 当前工作目录 的顺序自动解析。）*
 
-项目根目录依次取 `--root`、`$PAGE_ANNOTATOR_ROOT`、当前工作目录。
+配置完成后，在浏览器里发完标注，只需对 Claude Code 或 Codex 说：
+> **「处理页面标注」** 或 **「按标注改」**
 
-### 3. 直接填进 Claude Code 输入框
+### 方式三：剪贴板一键粘贴
 
-Claude Code 插件 `page-annotator-inbox` 会检查发送记录。每次点「发送」，它把修复 prompt 填进输入框（追加在已有草稿后面），回车即可发送。
+点击工具栏的「发送」后，可直接粘贴到 Claude Code、Codex 或任何 AI 聊天窗口。在终端环境中，`⌘V` 粘贴 Prompt 文本，`Ctrl+V` 粘贴元素截图。
+
+---
+
+## 手动安装与配置
+
+### 环境要求
+
+- **Vite 8 及以上**（使用 Vite 原生 `parseAst` 解析 JSX/TSX 并注入 `data-loc`，无需额外编译依赖）
+- **Node.js 20.19 及以上**
+- **框架支持：** 任意 JSX/TSX 框架（**React、Preact、Solid、Qwik** 等）均可获得精确的 `文件:行:列` 源码定位；其他页面（Vue、Svelte、原生 HTML）也能正常使用，自动回退为 CSS Selector。
+
+### 1. 安装依赖
 
 ```bash
-claude plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator
+npm i -D github:shinelikeamillion/vite-plugin-page-annotator
 ```
 
-也可以在 Claude Code 会话里输入：`/plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator`。不安装、先试用：
+### 2. 配置 `vite.config.ts`
 
-```bash
-claude --plugin-dir node_modules/vite-plugin-page-annotator/claude-plugin
+将 `pageAnnotator()` 放在框架插件**前面**：
+
+```ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { pageAnnotator } from 'vite-plugin-page-annotator';
+
+export default defineConfig({
+  plugins: [
+    pageAnnotator({
+      lang: 'zh', // 'en' | 'zh'，也可随时在页面设置面板中切换
+      locator: true, // 设为 false 时不注入 data-loc，仅发送 CSS selector
+    }),
+    react(),
+  ],
+});
 ```
 
-## 数据存在哪
+### 3. 忽略本地数据目录
 
-都在项目根目录的 `.page-annotator/` 下：
+将 `.page-annotator/` 加入 `.gitignore`：
 
-- `annotations.json`：标注队列，状态依次是 `pending`（已发送）→ `delivered`（AI 已读取）→ `done`（已完成）。已完成的保留最近 200 条，在设置面板的「历史」里查看。
-- `shots/<id>.png`：元素截图。
-- `outbox.json`：最近一次发送的 prompt，给 Claude Code 插件读取。
+```gitignore
+.page-annotator/
+```
 
-旧版本存在 `node_modules/.page-annotator/`，首次运行时会自动搬过来。
+### 插件配置项
 
-## 实现
+| 选项 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `lang` | `'en' \| 'zh'` | `'en'` | 界面与默认修复 Prompt 的语言。每位开发者仍可在页面右上/设置面板里独立切换并记住偏好。 |
+| `locator` | `boolean` | `true` | 是否在 `vite dev` 下为 JSX 元素注入 `data-loc="文件:行:列"`。设为 `false` 则仅发送 CSS Selector。 |
 
-- `src/index.js`：Vite 插件，给 JSX 元素加 `data-loc`、注入页面 UI，并提供 `/__annotator/*` 接口（提交、历史、截图）。
-- `src/client.js`：页面里的标注 UI，放在 Shadow DOM 里，不影响页面样式。
-- `src/store.js`：队列读写和 prompt 生成（也以 `vite-plugin-page-annotator/store` 导出）。
-- `src/mcp-server.js`：MCP 服务。
-- `claude-plugin/`：Claude Code 插件。
+---
 
-## 开发
+## 使用教程
+
+1. 运行 `npm run dev`，在浏览器打开开发页面。
+2. 按 **⌘⇧2**（Windows/Linux 为 `Ctrl+Shift+2`）呼出悬浮工具栏。默认隐藏不打扰，开关状态会自动记住。
+3. 在页面任意位置 **⌘+点击**（`Ctrl+点击`）或按 **Alt+A** 进入标注模式（这一下不会误触页面原有点击事件）。
+4. 鼠标悬停即可预览元素高亮框与 `文件:行:列` 源码位置，点击选中目标元素。
+5. 输入修改需求，按 **Enter** 保存（**Shift+Enter** 换行）。需要提供视觉参考时勾选「附带元素截图」。
+6. 选到了外层容器或内层图标？按 **↑ / ↓** 即可切换到父元素或子元素（输入框内已有文字时用 **⌥↑ / ⌥↓**）。
+7. 可以连续标注多处修改。点击工具栏上的「**N 条**」随时查看、编辑或删除草稿。
+
+   ![草稿列表：三条标注，其中一条带截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/drafts.png)
+
+8. 点击「**发送**」。标注批次即刻写入本地队列、同步至 Claude Code / MCP 并复制到剪贴板。
+
+### 快捷键一览
+
+| 快捷键 | 作用 |
+| --- | --- |
+| **⌘⇧2** / **Ctrl+Shift+2** | 显示 / 隐藏标注工具栏（状态自动持久化） |
+| **⌘+点击** / **Ctrl+点击**、**Alt+A** | 进入标注模式 |
+| **右键**、**Esc** | 退出标注模式 / 关闭标注弹窗 |
+| **↑ / ↓**（输入框有字时 **⌥↑ / ⌥↓**） | 向上改选父元素 / 向下改选子元素 |
+| **Enter** / **Shift+Enter** | 保存当前标注 / 换行 |
+| **拖动 ⠿** | 自由移动工具栏位置；双击 `⠿` 复位 |
+| **右键 ⠿** | 打开设置与历史面板（切换语言、自定义 Prompt、默认截图开关、查看历史状态） |
+
+### 设置面板与历史记录
+
+右键点击工具栏左侧的 `⠿` 把手即可打开设置面板。「历史」标签页会完整记录所有已发送的标注、处理状态（待处理 / 已读取 / 已完成）以及缩略图。
+
+| 设置面板 | 历史记录 |
+| --- | --- |
+| ![设置面板：语言、修复 prompt、默认截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/settings.png) | ![历史页：待处理和已完成的标注](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/history.png) |
+
+### 自定义修复 Prompt 模板
+
+你可以在设置面板中根据团队规范定制修复 Prompt，支持以下占位符：
+- `{{count}}` — 本次发送的标注条数
+- `{{ids}}` — 标注编号列表（如 `1, 2, 3`）
+- `{{page}}` — 当前页面 URL
+- `{{json}}` — 标注数据的 JSON 代码块（若模板中省略了 `{{json}}`，系统会自动追加在末尾）
+
+---
+
+## 数据存储与架构说明
+
+所有标注数据均保存在项目根目录的 `.page-annotator/` 下（插件已自动配置 Vite 忽略该目录的文件监听，发送标注不会触发页面刷新）：
+
+- `.page-annotator/annotations.json` — 标注队列，状态流转为 `pending`（已发送）→ `delivered`（AI 已读取）→ `done`（AI 已完成）。自动保留最近 200 条已完成记录供「历史」面板查看。
+- `.page-annotator/shots/<id>.png` — 元素截图文件。
+- `.page-annotator/outbox.json` — 最近一次发送的 Prompt 快照，供 Claude Code 插件实时读取。
+
+### 源码结构
+
+- [`src/index.js`](src/index.js) — Vite 插件核心：在 `serve` 阶段为 JSX 注入 `data-loc`、注入前端脚本并提供 `/__annotator/*` 接口。
+- [`src/client.js`](src/client.js) — 浏览器端标注交互 UI，运行在 Shadow DOM 内，与页面样式完全隔离。
+- [`src/store.js`](src/store.js) — 队列原子读写与 Prompt 生成器（同时通过 `vite-plugin-page-annotator/store` 导出）。
+- [`src/mcp-server.js`](src/mcp-server.js) — 零依赖 stdio MCP 服务端。
+- [`claude-plugin/`](claude-plugin/) — Claude Code 终端输入框自动填充插件。
+
+## 本地开发与测试
 
 ```bash
 npm install
-npm run check     # 语法检查
-npm test          # store 测试
+npm run check     # 源码语法检查
+npm test          # Store 与队列单元测试
 npm run test:mod  # Claude Code 插件测试
 ```
 
-`example/` 是一个接好插件的 React 落地页示例（`cd example && npm install && npm run dev`），上面的截图就来自它。
+`example/` 目录内置了一个已接入本插件的 React 落地页示例（`cd example && npm install && npm run dev`），文档中的截图均来自该示例。
 
 ## License
 

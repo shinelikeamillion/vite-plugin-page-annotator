@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://shinelikeamillion.github.io/vite-plugin-page-annotator/sitemap.xml
