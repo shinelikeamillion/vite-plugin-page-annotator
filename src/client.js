@@ -52,10 +52,11 @@
     },
   };
   /** @type {{ lang: 'zh'|'en', prompts: Record<string, string> }} prompts: custom template per language */
-  let settings = { lang: /^zh/i.test(navigator.language || '') ? 'zh' : 'en', prompts: {} };
+  // English unless the plugin was configured with lang: 'zh'; the viewer's own pick is kept
+  let settings = { lang: cfg.lang === 'zh' ? 'zh' : 'en', prompts: {} };
   try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { /* storage off */ }
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* storage off */ } };
-  const t = (key, ...args) => { const v = (STRINGS[settings.lang] || STRINGS.zh)[key]; return typeof v === 'function' ? v(...args) : v; };
+  const t = (key, ...args) => { const v = (STRINGS[settings.lang] || STRINGS.en)[key]; return typeof v === 'function' ? v(...args) : v; };
   const promptFor = (lang) => settings.prompts[lang] || DEFAULT_PROMPTS[lang] || '';
   const SCREENSHOT_LIB = cfg.screenshotLib || '/__annotator/vendor/modern-screenshot.js';
 
@@ -178,7 +179,7 @@
   </div>
   <div class="set-body">
   <label class="set-row"><span data-t="lang"></span>
-    <select class="set-lang"><option value="zh">中文</option><option value="en">English</option></select>
+    <select class="set-lang"><option value="en">English</option><option value="zh">中文</option></select>
   </label>
   <div class="set-label" data-t="promptLabel"></div>
   <textarea class="set-prompt" spellcheck="false"></textarea>
@@ -950,7 +951,7 @@
 
   grip.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleSettings(); });
   setLang.addEventListener('change', () => {
-    settings.lang = setLang.value === 'en' ? 'en' : 'zh';
+    settings.lang = setLang.value === 'zh' ? 'zh' : 'en';
     saveSettings();
     applyLang();
     fillSettings();

@@ -1,0 +1,11 @@
+{
+  "name": "page-annotator",
+  "owner": { "name": "sean liu" },
+  "plugins": [
+    {
+      "name": "page-annotator-inbox",
+      "source": "./claude-plugin",
+      "description": "Puts page annotations sent from the vite-plugin-page-annotator browser UI into the Claude Code prompt box"
+    }
+  ]
+}

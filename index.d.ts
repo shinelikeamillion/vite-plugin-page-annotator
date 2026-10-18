@@ -6,6 +6,11 @@ export interface PageAnnotatorOptions {
    * so each annotation points at its source line. Default true.
    */
   locator?: boolean;
+  /**
+   * Default UI language and fix-prompt language. Each viewer can switch it in the
+   * settings panel (right-click the ⠿ grip). Default 'en'.
+   */
+  lang?: 'en' | 'zh';
 }
 
 /** Dev-only (`vite dev`): source locations, the in-page annotator UI and its endpoints. */

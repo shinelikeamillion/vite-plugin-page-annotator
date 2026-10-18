@@ -1,6 +1,6 @@
 import type { Register } from 'claude-code'
 
-// Written by vite-plugin-page-annotator each time the page's 发送 is clicked.
+// Written by vite-plugin-page-annotator each time Send is clicked in the page.
 // Older versions of the plugin wrote it under node_modules/.
 const OUTBOXES = ['.page-annotator/outbox.json', 'node_modules/.page-annotator/outbox.json']
 const POLL_MS = 1000
@@ -76,8 +76,8 @@ export const register: Register = on => {
           )
           $.ui.toast(
             filled.isFilled
-              ? `已插入 ${box.ids.length} 条页面标注，回车发送`
-              : `收到 ${box.ids.length} 条页面标注，但输入框暂时不可用；可以说"处理页面标注"`,
+              ? `Added ${box.ids.length} page annotation${box.ids.length === 1 ? '' : 's'} to the prompt, press Enter to send`
+              : `Got ${box.ids.length} page annotation${box.ids.length === 1 ? '' : 's'}, but the prompt box is busy; ask Claude to "handle the page annotations"`,
           )
         }
       } catch {

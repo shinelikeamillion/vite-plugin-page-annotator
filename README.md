@@ -1,23 +1,26 @@
 # vite-plugin-page-annotator
 
-在 Vite 开发页面上点选元素、写下要改什么，一键交给 Claude Code 或 Codex。每条标注带源码位置（`文件:行:列`），截图可选，发送时会附上一段修复 prompt。
+**English** · [简体中文](README.zh-CN.md) · [Website](https://shinelikeamillion.github.io/vite-plugin-page-annotator/)
 
-只在 `vite dev` 下生效，`vite build` 的产物里什么都没有。
+Click elements on your Vite dev page, write what should change, and hand the list to Claude Code or Codex in one go. Each annotation carries its source location (`file:line:column`) and an optional element screenshot, and is sent with a ready-made fix prompt.
 
-## 安装
+It only runs under `vite dev`. A `vite build` output contains nothing from it.
+
+## Requirements
+
+- Vite 8 or later (JSX/TSX is parsed with Vite's own `parseAst` to add `data-loc`)
+- Node 20.19 or later
+- Any JSX framework for source locations (React, Preact, Solid…). Other pages still work, with CSS selectors instead of locations.
+
+## Install
 
 ```bash
-npm i -D vite-plugin-page-annotator
+npm i -D github:shinelikeamillion/vite-plugin-page-annotator
 ```
 
-还没发布到 npm 时，用本地路径或 git 地址安装：
-
-```bash
-npm i -D file:../page-annotator
-```
+Add it to `vite.config.ts`, before your framework plugin:
 
 ```ts
-// vite.config.ts
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { pageAnnotator } from 'vite-plugin-page-annotator';
@@ -27,48 +30,76 @@ export default defineConfig({
 });
 ```
 
-需要 Vite 8 及以上（`data-loc` 用 Vite 自带的 `parseAst` 解析 JSX/TSX）。在 `.gitignore` 里加上 `.page-annotator/`。
+Add the data folder to `.gitignore`:
 
-选项：`pageAnnotator({ locator: false })` 关掉给 JSX 元素加 `data-loc`，此时标注只带 CSS selector。
+```gitignore
+.page-annotator/
+```
 
-## 用法
+### Options
 
-| 操作 | 作用 |
+| Option | Default | What it does |
+| --- | --- | --- |
+| `lang` | `'en'` | UI and fix-prompt language, `'en'` or `'zh'`. Each person can still switch it in the settings panel. |
+| `locator` | `true` | Tag JSX elements with `data-loc`. Set `false` to send CSS selectors only. |
+
+## Tutorial
+
+1. Run `npm run dev` and open the page.
+2. Press **⌘⇧2** (Ctrl+Shift+2 on Windows/Linux) to show the toolbar. It stays hidden until you do, and the choice is remembered.
+3. **⌘+click** (Ctrl+click) anywhere, or press **Alt+A**, to start annotating. That first click doesn't pick anything.
+4. Hover to see the element and its source location, then click it. Write what should change and press **Enter** to save (**Shift+Enter** for a new line). Tick *Attach element screenshot* if a picture helps.
+5. Wrong element? Use **↑ / ↓** to move to the parent or child (with **⌥↑ / ⌥↓** once you've typed something).
+6. Add as many as you like. Click **N items** on the toolbar to review, edit or delete them.
+7. Click **Send**. The annotations go to the queue, and the fix prompt (with the JSON) plus the screenshots are copied to the clipboard.
+8. Give it to your agent: paste, or let it read the queue over MCP (see below).
+
+| Shortcut | Action |
 | --- | --- |
-| `⌘⇧2`（其他系统 `Ctrl+Shift+2`） | 显示 / 隐藏整个工具，状态会记住。默认隐藏，隐藏时不拦截任何点击 |
-| `⌘+点击`（其他系统 `Ctrl+点击`）或 `Alt+A` | 进入标注模式（这一下不选中元素） |
-| 点击元素 | 打开标注框，写需求，`Enter` 保存，`Shift+Enter` 换行 |
-| `↑` / `↓` | 在父 / 子元素间切换（标注框里输入框为空时直接按，有文字时用 `⌥↑` / `⌥↓`） |
-| 右键 / `Esc` | 退出标注模式 |
-| 拖动工具栏左边的 ⠿ | 移动工具栏，双击复位 |
-| 右键 ⠿ | 打开设置：界面语言、自定义修复 prompt、默认是否截图，以及历史记录 |
-| 点「N 条」 | 查看全部草稿，可改文案、删除、滚动到元素 |
-| 「发送」 | 写入队列，同时把修复 prompt（含 JSON）和拼好的截图放进剪贴板 |
+| ⌘⇧2 / Ctrl+Shift+2 | Show / hide the whole tool (remembered) |
+| ⌘+click / Ctrl+click, Alt+A | Start annotating |
+| Right-click, Esc | Stop annotating |
+| ↑ / ↓ (⌥↑ / ⌥↓) | Pick the parent / child element |
+| Enter / Shift+Enter | Save / new line |
+| Drag ⠿ | Move the toolbar; double-click to reset |
+| Right-click ⠿ | Settings: language, fix prompt, screenshot default, history |
 
-自定义 prompt 可用占位：`{{count}}` 条数、`{{ids}}` 编号、`{{page}}` 页面地址、`{{json}}` 标注 JSON（没写会自动附在末尾）。
+### Custom fix prompt
 
-## 交给 AI
+In the settings panel you can replace the fix prompt. These placeholders are filled in: `{{count}}` number of annotations, `{{ids}}` their ids, `{{page}}` page URL, `{{json}}` the annotations as JSON. If you leave out `{{json}}`, the JSON is added at the end.
 
-发送后有三种方式把标注交给 AI，任选一种：
+## Hand off to your AI agent
 
-**1. 剪贴板**：直接在 Claude Code / Codex 里粘贴。
+Pick any of the three.
 
-**2. MCP**：AI 调用 `get_page_annotations` 读取，改完后调用 `mark_annotations_done` 标记完成。
+### 1. Clipboard
 
-Claude Code（项目根目录的 `.mcp.json`）：
+After **Send**, paste into Claude Code, Codex or any chat. In a terminal, ⌘V pastes the text and Ctrl+V the screenshot.
+
+### 2. MCP server
+
+The package ships a dependency-free stdio MCP server, `page-annotator-mcp`, with three tools:
+
+| Tool | What it does |
+| --- | --- |
+| `get_page_annotations` | Returns the sent annotations (JSON plus screenshots) and marks them *delivered* |
+| `mark_annotations_done` | Marks the ids the agent handled as *done* |
+| `clear_page_annotations` | Empties the queue (only when you ask) |
+
+Claude Code, in `.mcp.json` at the project root:
 
 ```json
 {
   "mcpServers": {
     "page-annotator": {
-      "command": "node",
-      "args": ["node_modules/vite-plugin-page-annotator/src/mcp-server.js"]
+      "command": "npx",
+      "args": ["page-annotator-mcp"]
     }
   }
 }
 ```
 
-Codex（`~/.codex/config.toml`）：
+Codex, in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.page-annotator]
@@ -76,30 +107,51 @@ command = "npx"
 args = ["page-annotator-mcp", "--root", "/path/to/your/project"]
 ```
 
-**3. 自动填进 Claude Code 输入框**：包里带了一个 Claude Code 插件，每秒检查一次发送记录，有新的就把 prompt 填进输入框（已有草稿会保留，追加在后面），回车即可发送。
+Then tell the agent "handle the page annotations".
+
+The project root is taken from `--root`, then `$PAGE_ANNOTATOR_ROOT`, then the working directory.
+
+### 3. Straight into the Claude Code prompt box
+
+The `page-annotator-inbox` Claude Code plugin watches for sends. Each time you click **Send**, it puts the fix prompt into the prompt box (after any draft you have there) and you press Enter.
+
+```bash
+claude plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator
+```
+
+Or, inside a Claude Code session: `/plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator`. To try it without installing:
 
 ```bash
 claude --plugin-dir node_modules/vite-plugin-page-annotator/claude-plugin
 ```
 
-## 数据存在哪
+## Where the data lives
 
-都在项目根目录的 `.page-annotator/` 下：
+Everything is in `.page-annotator/` at the project root:
 
-- `annotations.json`：标注队列，状态依次是 `pending`（已发送）→ `delivered`（AI 已读取）→ `done`（已处理）。已完成的保留最近 200 条，设置面板的「历史」里可以查看。
-- `shots/<id>.png`：元素截图。
-- `outbox.json`：最近一次发送的 prompt，给 Claude Code 插件读取。
+- `annotations.json`: the queue. Items go `pending` (sent) → `delivered` (read by the agent) → `done`. The latest 200 done items are kept and shown under *History* in the settings panel.
+- `shots/<id>.png`: element screenshots.
+- `outbox.json`: the last sent prompt, read by the Claude Code plugin.
 
-旧版本存在 `node_modules/.page-annotator/`，首次运行时会自动搬过来。
+Older versions stored this in `node_modules/.page-annotator/`; it is moved over on first run.
 
-## 文件
+## How it works
 
-- `src/index.js`：Vite 插件，负责加 `data-loc`、注入页面 UI，以及 `/__annotator/*` 接口（提交、历史、截图）。
-- `src/client.js`：页面里的标注 UI，放在 Shadow DOM 里，不影响页面样式。
-- `src/store.js`：队列读写，以及生成 prompt。
-- `src/mcp-server.js`：MCP stdio 服务，没有额外依赖（`page-annotator-mcp`）。
-- `claude-plugin/`：Claude Code 插件，负责自动填入输入框。
+- `src/index.js`: the Vite plugin. Adds `data-loc` to JSX elements, injects the UI, and serves `/__annotator/*` (submit, history, screenshots).
+- `src/client.js`: the in-page UI, inside a Shadow DOM so it never touches your styles.
+- `src/store.js`: the queue and prompt builder (also exported as `vite-plugin-page-annotator/store`).
+- `src/mcp-server.js`: the MCP server.
+- `claude-plugin/`: the Claude Code plugin.
+
+## Development
+
+```bash
+npm install
+npm run check     # syntax check
+npm test          # store tests
+npm run test:mod  # Claude Code plugin tests
+```
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -4,5 +4,8 @@
   "description": "Puts page annotations sent from the vite-plugin-page-annotator browser UI into the prompt box",
   "author": {
     "name": "sean liu"
-  }
+  },
+  "homepage": "https://shinelikeamillion.github.io/vite-plugin-page-annotator/",
+  "repository": "https://github.com/shinelikeamillion/vite-plugin-page-annotator",
+  "license": "MIT"
 }

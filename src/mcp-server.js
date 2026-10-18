@@ -15,39 +15,39 @@ const ROOT = path.resolve(
   argRoot > -1 ? process.argv[argRoot + 1] : process.env.PAGE_ANNOTATOR_ROOT || process.cwd(),
 );
 
-const INSTRUCTIONS = `用户会在浏览器预览页面里点选元素并写下修改需求（"页面标注"）。
-当用户提到页面标注、标注、"按标注改"、"处理标注"时，调用 get_page_annotations 读取。
-返回 JSON。每条标注带有 note（需求）和 loc（源码位置 文件:行:列），按 loc 定位代码；text 是元素文字，用于区分循环渲染的同一行；screenshot 是元素截图的文件路径。
-改完后调用 mark_annotations_done 传入已处理的 id。`;
+const INSTRUCTIONS = `The user picks elements in the browser preview of their app and writes what should change ("page annotations").
+When the user mentions page annotations, annotations, or asks to apply / handle them (e.g. "按标注改", "处理页面标注"), call get_page_annotations.
+It returns JSON. Each annotation has a note (the request) and loc (source location, file:line:column): open the code at loc. text is the element's text, to tell apart elements rendered by the same line; screenshot is the path of an element screenshot.
+When done, call mark_annotations_done with the ids you handled.`;
 
 const TOOLS = [
   {
     name: 'get_page_annotations',
     description:
-      '读取用户在浏览器预览页面上提交的修改标注（点选的元素 + 修改需求）。返回 JSON 并把这些条目标记为已读取。每条包含 id、note（需求）、loc（源码位置 文件:行:列），可能有 text（元素文字）；没有 loc 时给 selector。有 screenshot（截图文件路径）的条目，截图也会作为图片内容块一起返回。',
+      'Read the change requests the user submitted from the browser preview (picked element + what to change). Returns JSON and marks those items as delivered. Each has id, note (the request) and loc (source location, file:line:column), and may have text (the element text); selector is given when there is no loc. Items with a screenshot (file path) also come back as image content blocks.',
     inputSchema: {
       type: 'object',
       properties: {
-        include_delivered: { type: 'boolean', description: '同时返回之前已读取但尚未标记完成的条目。默认 false。' },
-        include_screenshots: { type: 'boolean', description: '附带用户勾选截图的元素截图（图片内容块）。默认 true。' },
+        include_delivered: { type: 'boolean', description: 'Also return items that were read before but not marked done yet. Default false.' },
+        include_screenshots: { type: 'boolean', description: 'Include element screenshots (image content blocks) where the user attached one. Default true.' },
       },
       additionalProperties: false,
     },
   },
   {
     name: 'mark_annotations_done',
-    description: '把已经处理完的页面标注标记为完成。不传 ids 时，把所有已读取的条目都标记为完成。',
+    description: 'Mark handled page annotations as done. Without ids, every delivered item is marked done.',
     inputSchema: {
       type: 'object',
       properties: {
-        ids: { type: 'array', items: { type: 'integer' }, description: '要标记完成的标注 id（形如 #12 中的 12）。' },
+        ids: { type: 'array', items: { type: 'integer' }, description: 'Ids of the annotations to mark done (12 for #12).' },
       },
       additionalProperties: false,
     },
   },
   {
     name: 'clear_page_annotations',
-    description: '清空页面标注队列（包括未处理的）。只在用户明确要求时使用。',
+    description: 'Clear the whole annotation queue, open items included. Only when the user explicitly asks.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   },
 ];
@@ -74,7 +74,7 @@ function callTool(name, args = {}) {
     }
     for (const it of items) it.status = 'delivered';
     writeQueue(ROOT, q);
-    const content = json({ ...toJson(items), next_step: '处理完成后调用 mark_annotations_done，传入已处理的 ids' });
+    const content = json({ ...toJson(items), next_step: 'When done, call mark_annotations_done with the ids you handled' });
     if (args.include_screenshots !== false) {
       for (const it of items) {
         const img = it.screenshot && imageBlock(it.screenshot);

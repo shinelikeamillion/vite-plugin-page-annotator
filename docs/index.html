@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page Annotator for Vite</title>
+<meta name="description" content="Click elements on your Vite dev page, write what should change, and hand it to Claude Code or Codex with source locations and screenshots.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b5bf7'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='white'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #fbfbfd; --bg2: #f2f2f7; --card: #ffffff; --fg: #17171c; --muted: #5d5d6b; --line: #e3e3ea;
+  --accent: #5b5bf7; --accent-soft: #ececfe; --code-bg: #15151c; --code-fg: #e8e8f0; --ok: #1f9d55; --warn: #e5484d;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e0e13; --bg2: #16161d; --card: #191921; --fg: #ececf2; --muted: #9a9aab; --line: #2a2a35;
+    --accent: #8b8bff; --accent-soft: #23234a; --code-bg: #0a0a0f; --code-fg: #e8e8f0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e0e13; --bg2: #16161d; --card: #191921; --fg: #ececf2; --muted: #9a9aab; --line: #2a2a35;
+  --accent: #8b8bff; --accent-soft: #23234a; --code-bg: #0a0a0f; --code-fg: #e8e8f0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+header.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--fg); }
+.brand:hover { text-decoration: none; }
+.logo { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); display: grid; place-items: center; }
+.logo::after { content: ""; width: 10px; height: 10px; border: 3px solid #fff; border-radius: 50%; }
+nav.links { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+nav.links a { color: var(--muted); padding: 6px 10px; border-radius: 8px; font-size: 14px; }
+nav.links a:hover { color: var(--fg); background: var(--bg2); text-decoration: none; }
+.lang { border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+@media (max-width: 640px) { nav.links a.opt { display: none; } }
+
+.hero { padding: 72px 0 40px; }
+.hero .grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; }
+.hero .grid > * { min-width: 0; }
+@media (max-width: 860px) { .hero .grid { grid-template-columns: 1fr; gap: 36px; } .hero { padding-top: 44px; } }
+.eyebrow { display: inline-block; font-size: 13px; color: var(--accent); background: var(--accent-soft); padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+h1 { font-size: clamp(32px, 5.4vw, 50px); line-height: 1.1; letter-spacing: -0.02em; margin: 16px 0 16px; }
+.lead { font-size: 18px; color: var(--muted); margin: 0 0 28px; max-width: 34em; }
+.install { display: flex; align-items: center; gap: 8px; background: var(--code-bg); color: var(--code-fg); border-radius: 12px; padding: 12px 12px 12px 16px; max-width: 100%; }
+.install code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: 14px; }
+.install code::before { content: "$ "; color: #7d7d92; }
+.copy { flex: none; border: 1px solid #34343f; background: #24242e; color: var(--code-fg); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.copy:hover { background: #2e2e3a; }
+.cta { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; font-weight: 600; font-size: 15px; border: 1px solid var(--line); color: var(--fg); background: var(--card); }
+.btn:hover { text-decoration: none; border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+
+/* demo: a fake dev page being annotated */
+.demo { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 20px 60px -24px rgba(30, 30, 80, .35); overflow: hidden; }
+.demo .chrome { display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg2); }
+.demo .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.demo .chrome span { margin-left: 10px; font-size: 12px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; background: var(--card); border-radius: 6px; padding: 2px 10px; }
+.demo .page { padding: 22px 22px 78px; position: relative; }
+.fake-h { height: 16px; width: 48%; border-radius: 6px; background: var(--fg); opacity: .85; }
+.fake-p { height: 9px; border-radius: 5px; background: var(--muted); opacity: .35; margin-top: 10px; }
+.fake-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+.fake-card { height: 56px; border-radius: 10px; background: var(--bg2); border: 1px solid var(--line); }
+.fake-btn { margin-top: 18px; display: inline-block; padding: 8px 18px; border-radius: 8px; background: var(--fg); color: var(--bg); font-size: 13px; font-weight: 600; position: relative; }
+.hl { position: absolute; inset: -5px; border: 2px solid var(--accent); border-radius: 11px; background: color-mix(in srgb, var(--accent) 12%, transparent); animation: pulse 2.4s ease-in-out infinite; }
+.loc { position: absolute; left: -5px; top: -30px; white-space: nowrap; background: var(--accent); color: #fff; font: 600 11px ui-monospace, Menlo, monospace; padding: 3px 7px; border-radius: 6px; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .hl { animation: none; } }
+.pop { position: relative; margin: 14px 0 0 56px; width: min(270px, calc(100% - 56px)); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; box-shadow: 0 12px 30px -10px rgba(0,0,0,.35); font-size: 12.5px; }
+.pop .note { border: 1px solid var(--accent); border-radius: 8px; padding: 7px 8px; min-height: 44px; }
+.pop .row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: var(--muted); font-size: 11.5px; }
+.pop .save { background: var(--accent); color: #fff; border-radius: 6px; padding: 3px 10px; font-weight: 600; }
+.caret { display: inline-block; width: 1px; height: 1em; background: var(--fg); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.bar { position: absolute; right: 14px; bottom: 14px; display: flex; align-items: center; gap: 4px; background: #1b1b24; color: #ececf2; border-radius: 12px; padding: 5px; font-size: 12.5px; box-shadow: 0 10px 30px -8px rgba(0,0,0,.5); }
+.bar span { padding: 4px 9px; border-radius: 8px; white-space: nowrap; }
+.bar .grip { color: #7d7d92; padding: 4px 4px; }
+.bar .on { background: #5b5bf7; }
+.bar .send { background: #ececf2; color: #1b1b24; font-weight: 650; }
+@media (max-width: 440px) { .pop { margin-left: 0; width: 100%; } .bar .opt { display: none; } }
+
+section { padding: 64px 0; }
+section.alt { background: var(--bg2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+h2 { font-size: clamp(26px, 3.6vw, 34px); letter-spacing: -0.015em; line-height: 1.2; margin: 0 0 10px; }
+.sub { color: var(--muted); margin: 0 0 36px; max-width: 40em; }
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 860px) { .features { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+.card h3 { margin: 10px 0 6px; font-size: 17px; }
+.card p { margin: 0; color: var(--muted); font-size: 15px; }
+.ico { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-size: 17px; font-weight: 700; }
+
+ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: s; display: grid; gap: 14px; }
+ol.steps > li { counter-increment: s; display: grid; grid-template-columns: 40px 1fr; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+ol.steps > li::before { content: counter(s); width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+ol.steps h3 { margin: 3px 0 6px; font-size: 17px; }
+ol.steps p { margin: 0 0 6px; color: var(--muted); }
+ol.steps > li > div { min-width: 0; }
+pre { background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.55; margin: 10px 0 4px; }
+pre .c { color: #7d7d92; } pre .k { color: #c792ea; } pre .s { color: #a5e0a0; } pre .f { color: #82aaff; }
+p code, li code, td code { background: var(--bg2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 5px; font-size: .88em; }
+section.alt p code, section.alt td code { background: var(--card); }
+kbd { display: inline-block; min-width: 1.6em; text-align: center; border: 1px solid var(--line); border-bottom-width: 2px; background: var(--card); border-radius: 6px; padding: 0 6px; font-size: .85em; line-height: 1.6; }
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.tab { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+.panel[hidden] { display: none; }
+.panel h3 { margin: 0 0 6px; font-size: 18px; }
+.panel p { color: var(--muted); margin: 0 0 8px; }
+.panel .hint { font-size: 14px; }
+.tools { width: 100%; border-collapse: collapse; margin: 12px 0 6px; font-size: 14.5px; }
+@media (max-width: 560px) { .panel { padding: 16px; } .tools tr { display: grid; } .tools th:last-child { display: none; } .tools td:first-child { border-bottom: 0; padding-bottom: 0; } }
+
+table.keys, .tools { width: 100%; border-collapse: collapse; }
+table.keys td, .tools td, .tools th { padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tools th { text-align: left; color: var(--muted); font-weight: 600; font-size: 13px; }
+table.keys tr:last-child td { border-bottom: 0; }
+table.keys td:first-child { white-space: nowrap; width: 1%; }
+.tablecard { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 4px 8px; overflow-x: auto; }
+@media (max-width: 560px) { table.keys td:first-child { white-space: normal; } }
+
+.flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+.flow span { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; font: 600 13px ui-monospace, Menlo, monospace; }
+.flow b { color: var(--muted); font-weight: 400; }
+
+footer { padding: 36px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); }
+footer .wrap { display: flex; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><span class="logo" aria-hidden="true"></span><span>page-annotator</span></a>
+    <nav class="links">
+      <a class="opt" href="#start" data-i18n="nav.start">Get started</a>
+      <a class="opt" href="#handoff" data-i18n="nav.handoff">AI hand-off</a>
+      <a class="opt" href="#shortcuts" data-i18n="nav.keys">Shortcuts</a>
+      <a href="https://github.com/shinelikeamillion/vite-plugin-page-annotator">GitHub</a>
+      <button class="lang" id="lang" type="button" aria-label="Switch language">中文</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap grid">
+      <div>
+        <span class="eyebrow" data-i18n="eyebrow">Vite plugin · dev only</span>
+        <h1 data-i18n="h1">Point at the page. Tell your AI what to fix.</h1>
+        <p class="lead" data-i18n="lead">Click elements on your Vite dev page and write what should change. Each note carries its source location and an optional screenshot, and goes to Claude Code or Codex as a ready-to-run fix prompt.</p>
+        <div class="install">
+          <code id="cmd">npm i -D github:shinelikeamillion/vite-plugin-page-annotator</code>
+          <button class="copy" type="button" data-copy="cmd" data-i18n="copy">Copy</button>
+        </div>
+        <div class="cta">
+          <a class="btn primary" href="#start" data-i18n="cta.start">Get started</a>
+          <a class="btn" href="https://github.com/shinelikeamillion/vite-plugin-page-annotator" data-i18n="cta.gh">View on GitHub</a>
+        </div>
+      </div>
+
+      <div class="demo" aria-hidden="true">
+        <div class="chrome"><i></i><i></i><i></i><span>localhost:5173</span></div>
+        <div class="page">
+          <div class="fake-h"></div>
+          <div class="fake-p" style="width:86%"></div>
+          <div class="fake-p" style="width:64%"></div>
+          <div class="fake-cards"><div class="fake-card"></div><div class="fake-card"></div><div class="fake-card"></div></div>
+          <div class="fake-btn">Get started<div class="hl"></div><div class="loc">src/Hero.tsx:42:9</div></div>
+          <div class="pop">
+            <div class="note"><span data-i18n="demo.note">Make this button use the brand color and round the corners</span><span class="caret"></span></div>
+            <div class="row"><span>☐ <span data-i18n="demo.shot">Screenshot</span></span><span class="save" data-i18n="demo.save">Save</span></div>
+          </div>
+          <div class="bar"><span class="grip">⠿</span><span class="on" data-i18n="demo.toggle">◎ Annotate</span><span class="opt" data-i18n="demo.count">3 items</span><span class="send" data-i18n="demo.send">Send</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="alt">
+    <div class="wrap">
+      <h2 data-i18n="why.h">Built for the edit loop with AI agents</h2>
+      <p class="sub" data-i18n="why.sub">"The button in the third card" is easy to say and hard for an agent to find. Annotations tell it exactly where to look.</p>
+      <div class="features">
+        <div class="card"><div class="ico">⌖</div><h3 data-i18n="f1.h">Exact source location</h3><p data-i18n="f1.p">Every JSX element gets a file:line:column tag in dev, so the agent opens the right line instead of searching.</p></div>
+        <div class="card"><div class="ico">▣</div><h3 data-i18n="f2.h">Element screenshots</h3><p data-i18n="f2.p">Attach a picture of the element as it looks now. It is saved to disk and handed to the agent with the note.</p></div>
+        <div class="card"><div class="ico">↗</div><h3 data-i18n="f3.h">Three ways to hand off</h3><p data-i18n="f3.p">Paste from the clipboard, let the agent read the queue over MCP, or have it land in the Claude Code prompt box.</p></div>
+        <div class="card"><div class="ico">✓</div><h3 data-i18n="f4.h">Tracks what is done</h3><p data-i18n="f4.p">Notes move from sent to read to done. The settings panel keeps a history with thumbnails.</p></div>
+        <div class="card"><div class="ico">✎</div><h3 data-i18n="f5.h">Your own prompt</h3><p data-i18n="f5.p">Rewrite the fix prompt with placeholders for the count, ids, page URL and JSON. English and Chinese built in.</p></div>
+        <div class="card"><div class="ico">∅</div><h3 data-i18n="f6.h">Zero cost in production</h3><p data-i18n="f6.p">It only runs under vite dev, inside a Shadow DOM that never touches your styles. Builds contain none of it.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="start">
+    <div class="wrap">
+      <h2 data-i18n="start.h">Get started in two minutes</h2>
+      <p class="sub" data-i18n="start.sub">Needs Vite 8 or later and Node 20.19 or later. Source locations work with any JSX framework; other pages get CSS selectors.</p>
+      <ol class="steps">
+        <li><div>
+          <h3 data-i18n="s1.h">Install</h3>
+          <pre><code>npm i -D github:shinelikeamillion/vite-plugin-page-annotator</code></pre>
+        </div></li>
+        <li><div>
+          <h3 data-i18n="s2.h">Add the plugin</h3>
+          <p data-i18n-html="s2.p">Put it before your framework plugin in <code>vite.config.ts</code>, and add <code>.page-annotator/</code> to <code>.gitignore</code>.</p>
+<pre><code><span class="k">import</span> { defineConfig } <span class="k">from</span> <span class="s">'vite'</span>;
+<span class="k">import</span> react <span class="k">from</span> <span class="s">'@vitejs/plugin-react'</span>;
+<span class="k">import</span> { pageAnnotator } <span class="k">from</span> <span class="s">'vite-plugin-page-annotator'</span>;
+
+<span class="k">export default</span> <span class="f">defineConfig</span>({
+  plugins: [<span class="f">pageAnnotator</span>(), <span class="f">react</span>()], <span class="c">// pageAnnotator({ lang: 'zh' }) for Chinese</span>
+});</code></pre>
+        </div></li>
+        <li><div>
+          <h3 data-i18n="s3.h">Show the toolbar</h3>
+          <p data-i18n-html="s3.p">Run <code>npm run dev</code>, open the page and press <kbd>⌘</kbd><kbd>⇧</kbd><kbd>2</kbd> (<kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>2</kbd> on Windows/Linux). It stays hidden until you do, and remembers.</p>
+        </div></li>
+        <li><div>
+          <h3 data-i18n="s4.h">Annotate</h3>
+          <p data-i18n-html="s4.p"><kbd>⌘</kbd>+click anywhere (or <kbd>Alt</kbd><kbd>A</kbd>) to start, then click an element. Write what should change and press <kbd>Enter</kbd>. Use <kbd>↑</kbd> <kbd>↓</kbd> to pick the parent or child instead.</p>
+        </div></li>
+        <li><div>
+          <h3 data-i18n="s5.h">Send</h3>
+          <p data-i18n="s5.p">Click Send. The notes go to the queue in .page-annotator/, and the fix prompt and screenshots are copied to your clipboard. Then hand them to your agent.</p>
+        </div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="handoff" class="alt">
+    <div class="wrap">
+      <h2 data-i18n="h.h">Hand off to your AI agent</h2>
+      <p class="sub" data-i18n="h.sub">Pick whichever fits how you work. They all read the same queue.</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" aria-controls="p-clip" id="t-clip" data-i18n="h.t1">Clipboard</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-mcp" id="t-mcp" data-i18n="h.t2">MCP server</button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="p-cc" id="t-cc" data-i18n="h.t3">Claude Code plugin</button>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-clip" aria-labelledby="t-clip">
+        <h3 data-i18n="c.h">Paste it anywhere</h3>
+        <p data-i18n-html="c.p">After Send, paste into Claude Code, Codex or any chat. In a terminal, <kbd>⌘</kbd><kbd>V</kbd> pastes the prompt and <kbd>Ctrl</kbd><kbd>V</kbd> the screenshot.</p>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-mcp" aria-labelledby="t-mcp" hidden>
+        <h3 data-i18n="m.h">Let the agent read the queue</h3>
+        <p data-i18n="m.p">The package ships page-annotator-mcp, a stdio MCP server with no extra dependencies. Then say "handle the page annotations".</p>
+        <p class="hint"><b>Claude Code</b> · <code>.mcp.json</code></p>
+<pre><code>{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"page-annotator"</span>: { <span class="s">"command"</span>: <span class="s">"npx"</span>, <span class="s">"args"</span>: [<span class="s">"page-annotator-mcp"</span>] }
+  }
+}</code></pre>
+        <p class="hint"><b>Codex</b> · <code>~/.codex/config.toml</code></p>
+<pre><code>[mcp_servers.page-annotator]
+command = <span class="s">"npx"</span>
+args = [<span class="s">"page-annotator-mcp"</span>, <span class="s">"--root"</span>, <span class="s">"/path/to/your/project"</span>]</code></pre>
+        <table class="tools">
+          <tr><th data-i18n="m.tool">Tool</th><th data-i18n="m.does">What it does</th></tr>
+          <tr><td><code>get_page_annotations</code></td><td data-i18n="m.t1">Returns the sent notes (JSON and screenshots) and marks them read</td></tr>
+          <tr><td><code>mark_annotations_done</code></td><td data-i18n="m.t2">Marks the ids the agent handled as done</td></tr>
+          <tr><td><code>clear_page_annotations</code></td><td data-i18n="m.t3">Empties the queue, only when you ask</td></tr>
+        </table>
+        <div class="flow"><span>pending</span><b>→</b><span>delivered</span><b>→</b><span>done</span></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-cc" aria-labelledby="t-cc" hidden>
+        <h3 data-i18n="p.h">Straight into the prompt box</h3>
+        <p data-i18n="p.p">The page-annotator-inbox plugin watches for sends. Each Send puts the fix prompt into Claude Code's prompt box, after any draft you have, and you press Enter.</p>
+<pre><code>claude plugin install page-annotator-inbox --marketplace shinelikeamillion/vite-plugin-page-annotator</code></pre>
+        <p class="hint" data-i18n-html="p.try">Or try it without installing: <code>claude --plugin-dir node_modules/vite-plugin-page-annotator/claude-plugin</code></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="shortcuts">
+    <div class="wrap">
+      <h2 data-i18n="k.h">Shortcuts</h2>
+      <p class="sub" data-i18n="k.sub">On Windows and Linux, use Ctrl where you see ⌘.</p>
+      <div class="tablecard">
+        <table class="keys">
+          <tr><td><kbd>⌘</kbd><kbd>⇧</kbd><kbd>2</kbd></td><td data-i18n="k1">Show or hide the whole tool (remembered)</td></tr>
+          <tr><td><kbd>⌘</kbd>+click · <kbd>Alt</kbd><kbd>A</kbd></td><td data-i18n="k2">Start annotating</td></tr>
+          <tr><td><span data-i18n="k3a">Right-click</span> · <kbd>Esc</kbd></td><td data-i18n="k3">Stop annotating</td></tr>
+          <tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td data-i18n="k4">Pick the parent or child element (⌥↑ ⌥↓ once you have typed)</td></tr>
+          <tr><td><kbd>Enter</kbd> · <kbd>⇧</kbd><kbd>Enter</kbd></td><td data-i18n="k5">Save the note · new line</td></tr>
+          <tr><td><span data-i18n="k6a">Drag</span> ⠿</td><td data-i18n="k6">Move the toolbar; double-click to reset</td></tr>
+          <tr><td><span data-i18n="k7a">Right-click</span> ⠿</td><td data-i18n="k7">Settings: language, fix prompt, screenshot default, history</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>vite-plugin-page-annotator · MIT</span>
+    <span><a href="https://github.com/shinelikeamillion/vite-plugin-page-annotator#readme">README</a> · <a href="https://github.com/shinelikeamillion/vite-plugin-page-annotator/blob/main/README.zh-CN.md">中文文档</a> · <a href="https://github.com/shinelikeamillion/vite-plugin-page-annotator/issues" data-i18n="issues">Issues</a></span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const ZH = {
+    'nav.start': '快速开始', 'nav.handoff': '交给 AI', 'nav.keys': '快捷键',
+    eyebrow: 'Vite 插件 · 仅开发模式',
+    h1: '指着页面，告诉 AI 改哪里。',
+    lead: '在 Vite 开发页面上点选元素，写下要改什么。每条标注都带源码位置，可附截图，以现成的修复 prompt 交给 Claude Code 或 Codex。',
+    copy: '复制', 'cta.start': '快速开始', 'cta.gh': '在 GitHub 查看',
+    'demo.note': '把这个按钮改成品牌色，加圆角', 'demo.shot': '截图', 'demo.save': '保存', 'demo.toggle': '◎ 标注', 'demo.count': '3 条', 'demo.send': '发送',
+    'why.h': '为和 AI 一起改页面而做', 'why.sub': '「第三张卡片里的那个按钮」说起来容易，AI 却很难找到。标注直接告诉它去哪里改。',
+    'f1.h': '精确的源码位置', 'f1.p': '开发模式下每个 JSX 元素都带 文件:行:列，AI 直接打开那一行，不用搜索。',
+    'f2.h': '元素截图', 'f2.p': '附上元素现在的样子。截图存到本地，和需求一起交给 AI。',
+    'f3.h': '三种交付方式', 'f3.p': '从剪贴板粘贴、让 AI 通过 MCP 读取队列，或直接填进 Claude Code 输入框。',
+    'f4.h': '记录处理进度', 'f4.p': '标注依次经过 已发送 → 已读取 → 已完成。设置面板里有带缩略图的历史记录。',
+    'f5.h': '自定义 prompt', 'f5.p': '用条数、编号、页面地址、JSON 等占位符改写修复 prompt。内置中英文。',
+    'f6.h': '生产环境零开销', 'f6.p': '只在 vite dev 下运行，放在 Shadow DOM 里，不影响页面样式。构建产物里没有它。',
+    'start.h': '两分钟上手', 'start.sub': '需要 Vite 8+ 和 Node 20.19+。任何 JSX 框架都能定位源码，其他页面会给出 CSS selector。',
+    's1.h': '安装', 's2.h': '添加插件',
+    's2.p': '在 <code>vite.config.ts</code> 里放在框架插件前面，并把 <code>.page-annotator/</code> 加进 <code>.gitignore</code>。',
+    's3.h': '显示工具栏',
+    's3.p': '运行 <code>npm run dev</code>，打开页面，按 <kbd>⌘</kbd><kbd>⇧</kbd><kbd>2</kbd>（Windows/Linux 为 <kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>2</kbd>）。默认隐藏，开关状态会记住。',
+    's4.h': '标注',
+    's4.p': '在任意处 <kbd>⌘</kbd>+点击（或 <kbd>Alt</kbd><kbd>A</kbd>）进入标注模式，再点击元素。写下要怎么改，按 <kbd>Enter</kbd> 保存。用 <kbd>↑</kbd> <kbd>↓</kbd> 改选父 / 子元素。',
+    's5.h': '发送', 's5.p': '点「发送」。标注写入 .page-annotator/ 下的队列，修复 prompt 和截图同时复制到剪贴板。然后交给 AI。',
+    'h.h': '交给 AI', 'h.sub': '按你的习惯任选一种，它们读的是同一个队列。',
+    'h.t1': '剪贴板', 'h.t2': 'MCP 服务', 'h.t3': 'Claude Code 插件',
+    'c.h': '粘贴到任何地方', 'c.p': '点「发送」后，粘贴到 Claude Code、Codex 或任意对话。终端里 <kbd>⌘</kbd><kbd>V</kbd> 粘贴 prompt，<kbd>Ctrl</kbd><kbd>V</kbd> 粘贴截图。',
+    'm.h': '让 AI 读取队列', 'm.p': '包里带了 page-annotator-mcp，一个没有额外依赖的 stdio MCP 服务。配好后对 AI 说「处理页面标注」。',
+    'm.tool': '工具', 'm.does': '作用', 'm.t1': '返回已发送的标注（JSON 和截图），并标记为已读取', 'm.t2': '把 AI 处理完的 id 标记为已完成', 'm.t3': '清空队列，只在你要求时使用',
+    'p.h': '直接填进输入框', 'p.p': 'page-annotator-inbox 插件会检查发送记录。每次点「发送」，修复 prompt 就会填进 Claude Code 的输入框（追加在已有草稿后面），回车即可。',
+    'p.try': '不安装、先试用：<code>claude --plugin-dir node_modules/vite-plugin-page-annotator/claude-plugin</code>',
+    'k.h': '快捷键', 'k.sub': 'Windows 和 Linux 上，把 ⌘ 换成 Ctrl。',
+    k1: '显示 / 隐藏整个工具（状态会记住）', k2: '进入标注模式', k3a: '右键', k3: '退出标注模式',
+    k4: '改选父 / 子元素（输入框里有文字时用 ⌥↑ ⌥↓）', k5: '保存 · 换行', k6a: '拖动', k6: '移动工具栏，双击复位', k7a: '右键', k7: '设置：语言、修复 prompt、默认截图、历史记录',
+    issues: '反馈问题',
+  };
+  const EN = {};
+  document.querySelectorAll('[data-i18n]').forEach((el) => { EN[el.dataset.i18n] = el.textContent; });
+  document.querySelectorAll('[data-i18n-html]').forEach((el) => { EN[el.dataset.i18nHtml] = el.innerHTML; });
+  const btn = document.getElementById('lang');
+  const apply = (lang) => {
+    const dict = lang === 'zh' ? ZH : EN;
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    document.querySelectorAll('[data-i18n]').forEach((el) => { const v = dict[el.dataset.i18n]; if (v != null) el.textContent = v; });
+    document.querySelectorAll('[data-i18n-html]').forEach((el) => { const v = dict[el.dataset.i18nHtml]; if (v != null) el.innerHTML = v; });
+    btn.textContent = lang === 'zh' ? 'English' : '中文';
+    try { localStorage.setItem('pa-lang', lang); } catch {}
+  };
+  let lang = 'en';
+  try { lang = localStorage.getItem('pa-lang') || (/^zh/i.test(navigator.language || '') ? 'zh' : 'en'); } catch {}
+  if (new URLSearchParams(location.search).get('lang') === 'zh') lang = 'zh';
+  if (lang === 'zh') apply('zh');
+  btn.addEventListener('click', () => { lang = lang === 'zh' ? 'en' : 'zh'; apply(lang); });
+
+  document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+    const text = document.getElementById(b.dataset.copy).textContent;
+    try { await navigator.clipboard.writeText(text); } catch { return; }
+    const old = b.textContent;
+    b.textContent = lang === 'zh' ? '已复制' : 'Copied';
+    setTimeout(() => { b.textContent = old; }, 1400);
+  }));
+
+  const tabs = [...document.querySelectorAll('.tab')];
+  tabs.forEach((t) => t.addEventListener('click', () => {
+    tabs.forEach((x) => {
+      const on = x === t;
+      x.setAttribute('aria-selected', String(on));
+      document.getElementById(x.getAttribute('aria-controls')).hidden = !on;
+    });
+  }));
+})();
+</script>
+</body>
+</html>

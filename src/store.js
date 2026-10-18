@@ -129,6 +129,16 @@ export function toJson(items) {
 
 /** Default fix prompts; {{count}} {{ids}} {{page}} {{json}} are filled in. */
 export const DEFAULT_PROMPTS = {
+  en: [
+    'Please make the code changes for the {{count}} page annotations below. Each one is an element I picked in the page preview plus what I want changed:',
+    '- `loc` is where the element is in the source (file:line:column); open that spot and edit it',
+    '- `text` is the text on the element; use it to tell which one is meant when one line of code renders several elements',
+    '- `screenshot` (when present) is a picture of the element at the time; look at it before editing',
+    '',
+    '{{json}}',
+    '',
+    'When done, summarize each change by #id and call mark_annotations_done (ids: [{{ids}}]).',
+  ].join('\n'),
   zh: [
     '请按下面 {{count}} 条页面标注修改代码。每条是我在预览页面上点选的元素和修改需求：',
     '- `loc` 是元素在源码里的位置（文件:行:列），直接打开这个位置修改',
@@ -139,21 +149,11 @@ export const DEFAULT_PROMPTS = {
     '',
     '改完后按 #id 逐条简要说明改了什么，并调用 mark_annotations_done（ids: [{{ids}}]）。',
   ].join('\n'),
-  en: [
-    'Please make the code changes for the {{count}} page annotations below. Each one is an element I picked in the page preview plus what I want changed:',
-    '- `loc` is where the element is in the source (file:line:column); open that spot and edit it',
-    '- `text` is the text on the element; use it to tell which one is meant when one line of code renders several elements',
-    '- `screenshot` (when present) is a picture of the element at the time; look at it before editing',
-    '',
-    '{{json}}',
-    '',
-    'When done, summarise each change by #id and call mark_annotations_done (ids: [{{ids}}]).',
-  ].join('\n'),
 };
 
 /** Ready-to-paste instruction for an agent, with the annotations as JSON. */
-export function toPrompt(items, { lang = 'zh', template } = {}) {
-  const tpl = (typeof template === 'string' && template.trim()) || DEFAULT_PROMPTS[lang] || DEFAULT_PROMPTS.zh;
+export function toPrompt(items, { lang = 'en', template } = {}) {
+  const tpl = (typeof template === 'string' && template.trim()) || DEFAULT_PROMPTS[lang] || DEFAULT_PROMPTS.en;
   const json = '```json\n' + JSON.stringify(toJson(items), null, 2) + '\n```';
   const vars = {
     count: String(items.length),

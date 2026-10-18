@@ -99,7 +99,7 @@ export function pageAnnotator(options = {}) {
     },
     transformIndexHtml() {
       return [
-        { tag: 'script', children: `window.__PAGE_ANNOTATOR__=${JSON.stringify({ endpoint: `${BASE}/submit`, screenshotLib: `${BASE}/vendor/modern-screenshot.js`, defaultPrompts: DEFAULT_PROMPTS })}`, injectTo: 'body' },
+        { tag: 'script', children: `window.__PAGE_ANNOTATOR__=${JSON.stringify({ lang: options.lang === 'zh' ? 'zh' : 'en', endpoint: `${BASE}/submit`, screenshotLib: `${BASE}/vendor/modern-screenshot.js`, defaultPrompts: DEFAULT_PROMPTS })}`, injectTo: 'body' },
         { tag: 'script', attrs: { src: `${BASE}/client.js`, defer: true }, injectTo: 'body' },
       ];
     },
@@ -140,12 +140,12 @@ export function pageAnnotator(options = {}) {
             const parsed = req.body;
             const payload = parsed && typeof parsed === 'object' ? parsed : JSON.parse(await readBody(req));
             const added = addSubmission(root, payload);
-            if (!added.length) return send(400, 'application/json', JSON.stringify({ ok: false, error: '没有有效的标注' }));
+            if (!added.length) return send(400, 'application/json', JSON.stringify({ ok: false, error: 'no valid annotations' }));
             const { lang, promptTemplate } = payload;
             const prompt = toPrompt(added, { lang, template: promptTemplate });
             writeOutbox(root, added, prompt);
             const shots = added.filter((it) => it.screenshot).length;
-            server.config.logger.info(`[annotator] 收到 ${added.length} 条页面标注 (#${added[0].id}–#${added[added.length - 1].id})${shots ? `，含 ${shots} 张截图` : ''}，等待 MCP 读取`, { timestamp: true });
+            server.config.logger.info(`[annotator] received ${added.length} annotation${added.length === 1 ? '' : 's'} (#${added[0].id}–#${added[added.length - 1].id})${shots ? `, ${shots} with screenshots` : ''}`, { timestamp: true });
             return send(200, 'application/json', JSON.stringify({ ok: true, ids: added.map((it) => it.id), prompt }));
           }
           return next();

@@ -5,6 +5,14 @@
   "type": "module",
   "license": "MIT",
   "author": "sean liu",
+  "homepage": "https://shinelikeamillion.github.io/vite-plugin-page-annotator/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shinelikeamillion/vite-plugin-page-annotator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shinelikeamillion/vite-plugin-page-annotator/issues"
+  },
   "keywords": [
     "vite",
     "vite-plugin",
@@ -12,7 +20,11 @@
     "claude-code",
     "codex",
     "mcp",
-    "devtools"
+    "devtools",
+    "annotation",
+    "ai",
+    "jsx",
+    "react"
   ],
   "exports": {
     ".": {
@@ -34,10 +46,12 @@
     "src",
     "claude-plugin/.claude-plugin/plugin.json",
     "claude-plugin/hooks/hooks.json",
-    "claude-plugin/hooks/register.ts"
+    "claude-plugin/hooks/register.ts",
+    "README.zh-CN.md",
+    "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19"
   },
   "peerDependencies": {
     "vite": ">=8.0.0"
@@ -47,6 +61,7 @@
   },
   "scripts": {
     "check": "node --check src/index.js && node --check src/client.js && node --check src/store.js && node --check src/mcp-server.js",
+    "test": "node --test test/*.test.js",
     "test:mod": "claude plugin test claude-plugin"
   },
   "devDependencies": {
