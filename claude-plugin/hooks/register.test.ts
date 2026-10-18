@@ -34,5 +34,14 @@ test('fills the prompt box when the page sends annotations', async ($, on) => {
   outbox = { mtimeMs: 3, text: JSON.stringify({ seq: 7, ids: [7], prompt: 'fix #7' }) }
   await clock.advance(1000)
   expect(fills[1]).toEqual({ text: '\n\nfix #7', mode: 'append' })
-  expect(toasts.length).toBe(2)
+
+  // sent to Codex from the toolbar: not ours
+  outbox = { mtimeMs: 4, text: JSON.stringify({ seq: 8, ids: [8], target: 'codex', prompt: 'fix #8' }) }
+  await clock.advance(1000)
+  expect(fills.length).toBe(2)
+
+  outbox = { mtimeMs: 5, text: JSON.stringify({ seq: 9, ids: [9], target: 'claude', prompt: 'fix #9' }) }
+  await clock.advance(1000)
+  expect(fills[2]).toEqual({ text: '\n\nfix #9', mode: 'append' })
+  expect(toasts.length).toBe(3)
 })

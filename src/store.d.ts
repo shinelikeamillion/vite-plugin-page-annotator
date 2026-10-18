@@ -3,6 +3,8 @@ export interface QueueItem {
   status: 'pending' | 'delivered' | 'done';
   note: string;
   screenshot?: string;
+  /** agent id the annotation was sent to ('claude', 'codex', ...); absent = any agent */
+  target?: string;
   [key: string]: unknown;
 }
 export function queueFile(root: string): string;
@@ -14,4 +16,10 @@ export function toJson(items: QueueItem[]): Record<string, unknown>;
 export const DEFAULT_PROMPTS: Record<'zh' | 'en', string>;
 export function toPrompt(items: QueueItem[], options?: { lang?: string; template?: string }): string;
 export function outboxFile(root: string): string;
-export function writeOutbox(root: string, items: QueueItem[], prompt: string): void;
+export function writeOutbox(root: string, items: QueueItem[], prompt: string, target?: string): void;
+export interface AgentInfo { agent: string; client: string; lastActive: number }
+export function agentId(clientName: string): string;
+export function isForAgent(item: QueueItem, agent: string): boolean;
+export function registerAgent(root: string, info: { agent: string; pid?: number; client?: string; lastActive?: number }): string;
+export function unregisterAgent(root: string, agent: string, pid?: number): void;
+export function listAgents(root: string, now?: number): AgentInfo[];

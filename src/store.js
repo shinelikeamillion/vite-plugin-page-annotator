@@ -65,11 +65,15 @@ export function addSubmission(root, payload) {
     viewport: payload.viewport || null,
   };
   const createdAt = new Date().toISOString();
+  const target = validAgent(payload.target);
   const added = (payload.items || [])
     .filter((it) => it && typeof it.note === 'string' && it.note.trim())
     .map(({ screenshot, ...it }) => {
       const id = q.nextId++;
-      return { ...it, id, status: 'pending', createdAt, page, screenshot: saveScreenshot(root, id, screenshot) };
+      const item = { ...it, id, status: 'pending', createdAt, page, screenshot: saveScreenshot(root, id, screenshot) };
+      if (target) item.target = target;
+      else delete item.target;
+      return item;
     });
   q.items.push(...added);
   // keep the queue small: drop finished items beyond the most recent 200
@@ -83,17 +87,74 @@ export function addSubmission(root, payload) {
   return added;
 }
 
-/** Latest sent prompt, picked up by the Claude Code mod and put in its prompt box. */
+/** Latest sent prompt, picked up by the Claude Code inbox plugin (only when target is empty or 'claude'). */
 export function outboxFile(root) {
   return path.join(dir(root), 'outbox.json');
 }
 
-export function writeOutbox(root, items, prompt) {
+export function writeOutbox(root, items, prompt, target = items[0]?.target) {
   const file = outboxFile(root);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const body = { seq: items[items.length - 1].id, ids: items.map((it) => it.id), prompt, sentAt: new Date().toISOString() };
+  const body = { seq: items[items.length - 1].id, ids: items.map((it) => it.id), target: validAgent(target) || null, prompt, sentAt: new Date().toISOString() };
   fs.writeFileSync(`${file}.tmp`, JSON.stringify(body, null, 2));
   fs.renameSync(`${file}.tmp`, file);
+}
+
+// ---------- agents: which MCP clients (Claude Code, Codex, ...) are online for this project ----------
+// Each MCP server process keeps <root>/.page-annotator/agents/<agent>-<pid>.json fresh while it runs.
+const AGENT_RE = /^[a-z0-9_-]{1,32}$/;
+const AGENT_STALE_MS = 45_000;
+const agentsDir = (root) => path.join(dir(root), 'agents');
+const validAgent = (name) => (typeof name === 'string' && AGENT_RE.test(name) ? name : undefined);
+
+/** MCP clientInfo.name -> short agent id: 'claude-code' -> 'claude', 'codex-mcp-client' -> 'codex'. */
+export function agentId(clientName) {
+  const s = String(clientName || '').toLowerCase();
+  if (s.includes('claude')) return 'claude';
+  if (s.includes('codex')) return 'codex';
+  if (s.includes('cursor')) return 'cursor';
+  return s.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'agent';
+}
+
+/** True when an annotation is meant for this agent (no target = anyone). */
+export const isForAgent = (item, agent) => !item.target || item.target === agent;
+
+export function registerAgent(root, { agent, pid = process.pid, client, lastActive }) {
+  const file = path.join(agentsDir(root), `${agent}-${pid}.json`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const body = { agent, pid, client: client || agent, lastSeen: Date.now(), lastActive: lastActive || Date.now() };
+  fs.writeFileSync(`${file}.tmp`, JSON.stringify(body));
+  fs.renameSync(`${file}.tmp`, file);
+  return file;
+}
+
+export function unregisterAgent(root, agent, pid = process.pid) {
+  fs.rmSync(path.join(agentsDir(root), `${agent}-${pid}.json`), { force: true });
+}
+
+const pidAlive = (pid) => {
+  try { process.kill(pid, 0); return true; } catch (err) { return err.code === 'EPERM'; }
+};
+
+/** Online agents, one entry per agent id, most recently used first. Stale entries are removed. */
+export function listAgents(root, now = Date.now()) {
+  let names = [];
+  try { names = fs.readdirSync(agentsDir(root)).filter((f) => f.endsWith('.json')); } catch { return []; }
+  const best = new Map();
+  for (const name of names) {
+    const file = path.join(agentsDir(root), name);
+    let a;
+    try { a = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { continue; }
+    if (!validAgent(a.agent) || now - a.lastSeen > AGENT_STALE_MS || !pidAlive(a.pid)) {
+      fs.rmSync(file, { force: true });
+      continue;
+    }
+    const prev = best.get(a.agent);
+    if (!prev || a.lastActive > prev.lastActive) best.set(a.agent, a);
+  }
+  return [...best.values()]
+    .sort((x, y) => y.lastActive - x.lastActive)
+    .map(({ agent, client, lastActive }) => ({ agent, client, lastActive }));
 }
 
 export function clearQueue(root) {

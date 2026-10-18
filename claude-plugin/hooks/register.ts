@@ -6,7 +6,8 @@ const OUTBOXES = ['.page-annotator/outbox.json', 'node_modules/.page-annotator/o
 const POLL_MS = 1000
 const MAX_UP = 4
 
-type Outbox = { seq: number; ids: number[]; prompt: string }
+// target: the agent picked in the page toolbar ('claude', 'codex', ...); null/absent = anyone
+type Outbox = { seq: number; ids: number[]; prompt: string; target?: string | null }
 
 const parentOf = (dir: string) => dir.replace(/[\\/][^\\/]*$/, '') || dir
 
@@ -67,6 +68,7 @@ export const register: Register = on => {
           }
           seen.set(file, { mtime, seq: Math.max(box.seq, last?.seq ?? 0) })
           if (!box.prompt || (last && box.seq <= last.seq)) continue
+          if (box.target && box.target !== 'claude') continue // sent to another tool (e.g. Codex)
 
           const draft = await $.prompt.read()
           const filled = await $.prompt.fill(

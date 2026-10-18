@@ -2,18 +2,48 @@
 // MCP server (stdio, newline-delimited JSON-RPC) exposing page annotations
 // submitted from the browser. Works with Claude Code and Codex.
 //
-//   npx page-annotator-mcp [--root <project dir>]
+//   npx page-annotator-mcp [--root <project dir>] [--agent <id>]
 //
 // The project root defaults to $PAGE_ANNOTATOR_ROOT, then the working directory.
+// The agent id ('claude', 'codex', ...) defaults to $PAGE_ANNOTATOR_AGENT, then the
+// MCP client name sent in initialize. While running, the server registers itself so
+// the page toolbar can pick who gets an annotation; it only hands out annotations
+// sent to its own agent id (or to nobody in particular).
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
-import { clearQueue, queueFile, readQueue, toJson, writeQueue } from './store.js';
+import {
+  agentId, clearQueue, isForAgent, queueFile, readQueue, registerAgent, toJson, unregisterAgent, writeQueue,
+} from './store.js';
 
-const argRoot = process.argv.indexOf('--root');
-const ROOT = path.resolve(
-  argRoot > -1 ? process.argv[argRoot + 1] : process.env.PAGE_ANNOTATOR_ROOT || process.cwd(),
-);
+const arg = (name) => {
+  const i = process.argv.indexOf(name);
+  return i > -1 ? process.argv[i + 1] : undefined;
+};
+const ROOT = path.resolve(arg('--root') || process.env.PAGE_ANNOTATOR_ROOT || process.cwd());
+const FIXED_AGENT = arg('--agent') || process.env.PAGE_ANNOTATOR_AGENT;
+const HEARTBEAT_MS = 15_000;
+
+// ---------- presence ----------
+let AGENT = FIXED_AGENT ? agentId(FIXED_AGENT) : undefined;
+let CLIENT;
+let lastActive = Date.now();
+let heartbeat;
+const touch = () => {
+  if (!AGENT) return;
+  try { registerAgent(ROOT, { agent: AGENT, client: CLIENT, lastActive }); } catch { /* read-only root: routing just stays off */ }
+};
+function online(clientName) {
+  CLIENT = String(clientName || '') || undefined;
+  if (!FIXED_AGENT) AGENT = agentId(CLIENT);
+  touch();
+  if (!heartbeat) heartbeat = setInterval(touch, HEARTBEAT_MS).unref();
+}
+function offline() {
+  if (AGENT) { try { unregisterAgent(ROOT, AGENT); } catch { /* already gone */ } }
+}
+process.on('exit', offline);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => process.exit(0));
 
 const INSTRUCTIONS = `The user picks elements in the browser preview of their app and writes what should change ("page annotations").
 When the user mentions page annotations, annotations, or asks to apply / handle them (e.g. "按标注改", "处理页面标注"), call get_page_annotations.
@@ -24,7 +54,7 @@ const TOOLS = [
   {
     name: 'get_page_annotations',
     description:
-      'Read the change requests the user submitted from the browser preview (picked element + what to change). Returns JSON and marks those items as delivered. Each has id, note (the request) and loc (source location, file:line:column), and may have text (the element text); selector is given when there is no loc. Items with a screenshot (file path) also come back as image content blocks.',
+      'Read the change requests the user submitted from the browser preview (picked element + what to change). Only annotations the user sent to this agent (or to no agent in particular) are returned. Returns JSON and marks those items as delivered. Each has id, note (the request) and loc (source location, file:line:column), and may have text (the element text); selector is given when there is no loc. Items with a screenshot (file path) also come back as image content blocks.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -36,7 +66,7 @@ const TOOLS = [
   },
   {
     name: 'mark_annotations_done',
-    description: 'Mark handled page annotations as done. Without ids, every delivered item is marked done.',
+    description: 'Mark handled page annotations as done. Without ids, every delivered item sent to this agent is marked done.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -64,13 +94,21 @@ function imageBlock(file) {
 }
 
 function callTool(name, args = {}) {
+  if (!AGENT) online(); // a client that skipped initialize
+  lastActive = Date.now();
+  touch();
   const q = readQueue(ROOT);
+  const mine = (it) => isForAgent(it, AGENT);
   if (name === 'get_page_annotations') {
     const want = args.include_delivered ? ['pending', 'delivered'] : ['pending'];
-    const items = q.items.filter((it) => want.includes(it.status));
+    const items = q.items.filter((it) => want.includes(it.status) && mine(it));
+    const others = q.items.filter((it) => it.status === 'pending' && !mine(it)).length;
     if (!items.length) {
-      const delivered = q.items.filter((it) => it.status === 'delivered').length;
-      return json({ total: 0, ids: [], pages: [], delivered_not_done: delivered, queue_file: queueFile(ROOT) });
+      const delivered = q.items.filter((it) => it.status === 'delivered' && mine(it)).length;
+      return json({
+        total: 0, ids: [], pages: [], agent: AGENT, delivered_not_done: delivered,
+        ...(others ? { pending_for_other_agents: others } : {}), queue_file: queueFile(ROOT),
+      });
     }
     for (const it of items) it.status = 'delivered';
     writeQueue(ROOT, q);
@@ -88,10 +126,10 @@ function callTool(name, args = {}) {
     const marked = [];
     for (const it of q.items) {
       if (it.status === 'done') continue;
-      if (ids ? ids.has(it.id) : it.status === 'delivered') { it.status = 'done'; marked.push(it.id); }
+      if (ids ? ids.has(it.id) : it.status === 'delivered' && mine(it)) { it.status = 'done'; marked.push(it.id); }
     }
     writeQueue(ROOT, q);
-    return json({ marked, pending: q.items.filter((it) => it.status === 'pending').length });
+    return json({ marked, pending: q.items.filter((it) => it.status === 'pending' && mine(it)).length });
   }
   if (name === 'clear_page_annotations') {
     return json({ cleared: clearQueue(ROOT) });
@@ -107,6 +145,7 @@ function handle(msg) {
   try {
     switch (method) {
       case 'initialize':
+        online(params?.clientInfo?.name);
         return send({
           id,
           result: {
@@ -134,7 +173,9 @@ function handle(msg) {
   }
 }
 
-readline.createInterface({ input: process.stdin }).on('line', (line) => {
+const rl = readline.createInterface({ input: process.stdin });
+rl.on('close', () => process.exit(0));
+rl.on('line', (line) => {
   if (!line.trim()) return;
   let msg;
   try { msg = JSON.parse(line); } catch { return send({ id: null, error: { code: -32700, message: 'Parse error' } }); }

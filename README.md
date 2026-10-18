@@ -109,6 +109,13 @@ args = ["page-annotator-mcp", "--root", "/absolute/path/to/your/project"]
 Once configured, simply tell Claude Code or Codex:
 > **"Handle the page annotations"** (or **"按标注改"**)
 
+### Choosing Who Gets the Annotations (Claude Code vs Codex)
+
+Each running `page-annotator-mcp` registers its client in `.page-annotator/agents/` (detected from the MCP `clientInfo`, e.g. `claude-code` → `claude`, `codex-mcp-client` → `codex`; override with `--agent <id>` or `PAGE_ANNOTATOR_AGENT`). When at least one agent is online, the toolbar shows a picker next to **Send** (`→ Claude` / `→ Codex`, the last pick is remembered). Each send is tagged with that target:
+
+- `get_page_annotations` only returns annotations sent to the calling agent, or ones sent with no target (no agent online at the time).
+- The `page-annotator-inbox` plugin only fills the Claude Code prompt box for sends targeted at `claude` (or untargeted).
+
 ### Method 3: Smart Clipboard
 
 Every time you click **Send** on the in-page toolbar, the formatted fix prompt (including `file:line:column` JSON) and element screenshots are copied to your system clipboard. Paste anywhere—in terminal agents, `⌘V` pastes text and `Ctrl+V` pastes the image.
@@ -170,22 +177,24 @@ Add `.page-annotator/` to your `.gitignore`:
 
 1. Start your dev server (`npm run dev`) and open your app in the browser.
 2. Press **⌘⇧2** (`Ctrl+Shift+2` on Windows/Linux) to wake up the floating toolbar. It stays hidden by default until you toggle it, and remembers your preference across reloads.
-3. **⌘+Click** (`Ctrl+Click`) anywhere on the page—or press **Alt+A**—to enter annotation mode.
-4. Hover over any element to inspect its highlight box and exact `file:line:column` badge, then **click** to select it.
+3. **Hold ⌘** (`Ctrl` on Windows/Linux): while it is down, hovering highlights elements with their exact `file:line:column` badge and a **click** picks one. Let go and the page works normally again. To stay in annotation mode without holding the key, click **◎ Annotate** or press **Alt+A**.
+4. The note box stays open after you release ⌘, so just type.
 5. Type what you want changed and press **Enter** to save (**Shift+Enter** for a newline). Check **Attach element screenshot** if visual context helps.
 6. Picked a wrapper or child by mistake? Press **↑ / ↓** to walk up to the parent or down to a child element (use **⌥↑ / ⌥↓** when the text box has content).
 7. Queue up as many UI tweaks across your page as you want. Click **N items** on the toolbar to review, edit, or delete drafts before sending.
 
    ![The drafts list with three annotations, one with a screenshot](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/drafts.png)
 
-8. Click **Send**. Your batch is written to `.page-annotator/`, pushed to the Claude Code inbox / MCP queue, and copied to your clipboard.
+8. Click **Send** or press **⌘+Enter** (`Ctrl+Enter`), also from inside the note box. Your batch is written to `.page-annotator/`, pushed to the Claude Code inbox / MCP queue, and copied to your clipboard.
 
 ### Keyboard Shortcuts
 
 | Shortcut | Action |
 | --- | --- |
 | **⌘⇧2** / **Ctrl+Shift+2** | Show / hide the annotator toolbar (state persisted in `localStorage`) |
-| **⌘+Click** / **Ctrl+Click**, **Alt+A** | Enter annotation mode |
+| Hold **⌘** / **Ctrl** | Annotate while held: hover to highlight, click to pick |
+| **Alt+A** / **◎ Annotate** | Lock annotation mode on / off |
+| **⌘+Enter** / **Ctrl+Enter** | Send all queued annotations (in the note box: save, then send) |
 | **Right-click**, **Esc** | Exit annotation mode / close popover |
 | **↑ / ↓** (**⌥↑ / ⌥↓** when typing) | Select parent / child DOM element |
 | **Enter** / **Shift+Enter** | Save annotation / insert new line |
@@ -214,7 +223,8 @@ All runtime state is stored locally in `.page-annotator/` at your project root (
 
 - `.page-annotator/annotations.json` — The shared annotation queue. Each item progresses through `pending` (sent from browser) → `delivered` (read by MCP agent) → `done` (marked complete by agent). The most recent 200 completed annotations are retained for the in-page *History* view.
 - `.page-annotator/shots/<id>.png` — Cropped element screenshots captured via `modern-screenshot`.
-- `.page-annotator/outbox.json` — Latest submission payload watched by the `page-annotator-inbox` Claude Code plugin.
+- `.page-annotator/outbox.json` — Latest submission payload (with its `target`) watched by the `page-annotator-inbox` Claude Code plugin.
+- `.page-annotator/agents/` — One heartbeat file per running MCP server, listed by `GET /__annotator/agents` for the toolbar picker.
 
 ### Source Layout
 

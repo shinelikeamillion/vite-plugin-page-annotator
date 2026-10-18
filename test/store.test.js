@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { addSubmission, readQueue, clearQueue, toPrompt, toJson, writeOutbox, outboxFile } from '../src/store.js';
+import {
+  addSubmission, readQueue, clearQueue, toPrompt, toJson, writeOutbox, outboxFile,
+  agentId, isForAgent, registerAgent, unregisterAgent, listAgents,
+} from '../src/store.js';
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'page-annotator-'));
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
@@ -55,4 +58,37 @@ test('writeOutbox records the last id as seq', () => {
   assert.equal(box.seq, 4);
   assert.deepEqual(box.ids, [3, 4]);
   assert.equal(box.prompt, 'hello');
+});
+
+test('submissions carry a validated target and the outbox repeats it', () => {
+  const root = tmp();
+  const [a] = addSubmission(root, { target: 'codex', items: [{ note: 'x' }] });
+  assert.equal(a.target, 'codex');
+  const [b] = addSubmission(root, { target: '../evil', items: [{ note: 'y', target: 'claude' }] });
+  assert.equal(b.target, undefined);
+  writeOutbox(root, [a], 'p');
+  assert.equal(JSON.parse(fs.readFileSync(outboxFile(root), 'utf8')).target, 'codex');
+  writeOutbox(root, [b], 'p');
+  assert.equal(JSON.parse(fs.readFileSync(outboxFile(root), 'utf8')).target, null);
+  assert.ok(isForAgent(a, 'codex') && !isForAgent(a, 'claude') && isForAgent(b, 'claude'));
+});
+
+test('agentId maps MCP client names', () => {
+  assert.equal(agentId('claude-code'), 'claude');
+  assert.equal(agentId('codex-mcp-client'), 'codex');
+  assert.equal(agentId('My Editor 2'), 'my-editor-2');
+  assert.equal(agentId(''), 'agent');
+});
+
+test('listAgents dedupes, sorts by activity and drops stale or dead entries', () => {
+  const root = tmp();
+  registerAgent(root, { agent: 'claude', lastActive: 100 });
+  registerAgent(root, { agent: 'codex', lastActive: 200 });
+  registerAgent(root, { agent: 'codex', pid: 999999, lastActive: 300 }); // dead pid
+  assert.deepEqual(listAgents(root).map((a) => a.agent), ['codex', 'claude']);
+  assert.equal(fs.readdirSync(path.join(root, '.page-annotator', 'agents')).length, 2);
+  assert.deepEqual(listAgents(root, Date.now() + 60_000), []);
+  registerAgent(root, { agent: 'claude' });
+  unregisterAgent(root, 'claude');
+  assert.deepEqual(listAgents(root), []);
 });

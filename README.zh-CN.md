@@ -109,6 +109,13 @@ args = ["page-annotator-mcp", "--root", "/path/to/your/project"]
 配置完成后，在浏览器里发完标注，只需对 Claude Code 或 Codex 说：
 > **「处理页面标注」** 或 **「按标注改」**
 
+### 选择发给谁（Claude Code / Codex）
+
+每个运行中的 `page-annotator-mcp` 会把自己登记到 `.page-annotator/agents/`（根据 MCP `clientInfo` 识别：`claude-code` → `claude`，`codex-mcp-client` → `codex`；可用 `--agent <id>` 或 `PAGE_ANNOTATOR_AGENT` 指定）。只要有工具在线，工具栏「发送」旁就会出现选择框（`→ Claude` / `→ Codex`，记住上次的选择），每次发送都带上这个 target：
+
+- `get_page_annotations` 只返回发给当前工具的标注，以及没有 target 的标注（发送时没有工具在线）。
+- `page-annotator-inbox` 插件只把发给 `claude`（或没有 target）的标注填进 Claude Code 输入框。
+
 ### 方式三：剪贴板一键粘贴
 
 点击工具栏的「发送」后，可直接粘贴到 Claude Code、Codex 或任何 AI 聊天窗口。在终端环境中，`⌘V` 粘贴 Prompt 文本，`Ctrl+V` 粘贴元素截图。
@@ -170,22 +177,24 @@ export default defineConfig({
 
 1. 运行 `npm run dev`，在浏览器打开开发页面。
 2. 按 **⌘⇧2**（Windows/Linux 为 `Ctrl+Shift+2`）呼出悬浮工具栏。默认隐藏不打扰，开关状态会自动记住。
-3. 在页面任意位置 **⌘+点击**（`Ctrl+点击`）或按 **Alt+A** 进入标注模式（这一下不会误触页面原有点击事件）。
-4. 鼠标悬停即可预览元素高亮框与 `文件:行:列` 源码位置，点击选中目标元素。
+3. **按住 ⌘**（Windows/Linux 为 `Ctrl`）进入标注模式：按住期间悬停即高亮元素并显示 `文件:行:列`，左键点击选中（不会触发页面原有点击）；松开即恢复正常浏览。想不按键持续标注，可点「◎ 标注」或按 **Alt+A** 锁定。
+4. 选中后输入框保持打开，松开 ⌘ 直接打字即可。
 5. 输入修改需求，按 **Enter** 保存（**Shift+Enter** 换行）。需要提供视觉参考时勾选「附带元素截图」。
 6. 选到了外层容器或内层图标？按 **↑ / ↓** 即可切换到父元素或子元素（输入框内已有文字时用 **⌥↑ / ⌥↓**）。
 7. 可以连续标注多处修改。点击工具栏上的「**N 条**」随时查看、编辑或删除草稿。
 
    ![草稿列表：三条标注，其中一条带截图](https://shinelikeamillion.github.io/vite-plugin-page-annotator/screenshots/drafts.png)
 
-8. 点击「**发送**」。标注批次即刻写入本地队列、同步至 Claude Code / MCP 并复制到剪贴板。
+8. 点击「**发送**」或按 **⌘+Enter**（`Ctrl+Enter`，在输入框里也可以）。标注批次即刻写入本地队列、同步至 Claude Code / MCP 并复制到剪贴板。
 
 ### 快捷键一览
 
 | 快捷键 | 作用 |
 | --- | --- |
 | **⌘⇧2** / **Ctrl+Shift+2** | 显示 / 隐藏标注工具栏（状态自动持久化） |
-| **⌘+点击** / **Ctrl+点击**、**Alt+A** | 进入标注模式 |
+| 按住 **⌘** / **Ctrl** | 按住期间标注：悬停高亮，点击选中 |
+| **Alt+A** / 「◎ 标注」 | 锁定 / 退出标注模式 |
+| **⌘+Enter** / **Ctrl+Enter** | 发送全部标注（在输入框里：先保存再发送） |
 | **右键**、**Esc** | 退出标注模式 / 关闭标注弹窗 |
 | **↑ / ↓**（输入框有字时 **⌥↑ / ⌥↓**） | 向上改选父元素 / 向下改选子元素 |
 | **Enter** / **Shift+Enter** | 保存当前标注 / 换行 |
@@ -216,7 +225,8 @@ export default defineConfig({
 
 - `.page-annotator/annotations.json` — 标注队列，状态流转为 `pending`（已发送）→ `delivered`（AI 已读取）→ `done`（AI 已完成）。自动保留最近 200 条已完成记录供「历史」面板查看。
 - `.page-annotator/shots/<id>.png` — 元素截图文件。
-- `.page-annotator/outbox.json` — 最近一次发送的 Prompt 快照，供 Claude Code 插件实时读取。
+- `.page-annotator/outbox.json` — 最近一次发送的 Prompt 快照（含 `target`），供 Claude Code 插件实时读取。
+- `.page-annotator/agents/` — 每个运行中的 MCP 服务一个心跳文件，`GET /__annotator/agents` 据此给工具栏列出在线工具。
 
 ### 源码结构
 

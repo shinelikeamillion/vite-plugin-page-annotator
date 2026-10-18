@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { parseAst } from 'vite';
-import { DEFAULT_PROMPTS, addSubmission, readQueue, toPrompt, writeOutbox } from './store.js';
+import { DEFAULT_PROMPTS, addSubmission, listAgents, readQueue, toPrompt, writeOutbox } from './store.js';
 
 const CLIENT_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'client.js');
 const BASE = '/__annotator';
@@ -121,10 +121,13 @@ export function pageAnnotator(options = {}) {
           }
           if (req.method === 'GET' && req.url === `${BASE}/history`) {
             const items = readQueue(root).items.slice(-300).reverse().map((it) => ({
-              id: it.id, status: it.status, note: it.note, loc: it.loc, selector: it.selector, page: it.page, createdAt: it.createdAt,
+              id: it.id, status: it.status, note: it.note, loc: it.loc, selector: it.selector, page: it.page, createdAt: it.createdAt, target: it.target,
               hasShot: typeof it.screenshot === 'string' && fs.existsSync(it.screenshot),
             }));
             return send(200, 'application/json', JSON.stringify({ items }));
+          }
+          if (req.method === 'GET' && req.url === `${BASE}/agents`) {
+            return send(200, 'application/json', JSON.stringify({ agents: listAgents(root) }));
           }
           const shot = req.method === 'GET' && req.url.match(/^\/__annotator\/shot\/(\d+)$/);
           if (shot) {
@@ -145,7 +148,8 @@ export function pageAnnotator(options = {}) {
             const prompt = toPrompt(added, { lang, template: promptTemplate });
             writeOutbox(root, added, prompt);
             const shots = added.filter((it) => it.screenshot).length;
-            server.config.logger.info(`[annotator] received ${added.length} annotation${added.length === 1 ? '' : 's'} (#${added[0].id}–#${added[added.length - 1].id})${shots ? `, ${shots} with screenshots` : ''}`, { timestamp: true });
+            const to = added[0].target ? ` for ${added[0].target}` : '';
+            server.config.logger.info(`[annotator] received ${added.length} annotation${added.length === 1 ? '' : 's'}${to} (#${added[0].id}–#${added[added.length - 1].id})${shots ? `, ${shots} with screenshots` : ''}`, { timestamp: true });
             return send(200, 'application/json', JSON.stringify({ ok: true, ids: added.map((it) => it.id), prompt }));
           }
           return next();
