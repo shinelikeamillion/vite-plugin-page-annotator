@@ -1,0 +1,55 @@
+{
+  "name": "vite-plugin-page-annotator",
+  "version": "0.1.0",
+  "description": "Click elements in your Vite dev page, write what should change, and hand it to Claude Code or Codex as a fix prompt with source locations and screenshots.",
+  "type": "module",
+  "license": "MIT",
+  "author": "sean liu",
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "annotate",
+    "claude-code",
+    "codex",
+    "mcp",
+    "devtools"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./store": {
+      "types": "./src/store.d.ts",
+      "default": "./src/store.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./index.d.ts",
+  "bin": {
+    "page-annotator-mcp": "./src/mcp-server.js"
+  },
+  "files": [
+    "index.d.ts",
+    "src",
+    "claude-plugin/.claude-plugin/plugin.json",
+    "claude-plugin/hooks/hooks.json",
+    "claude-plugin/hooks/register.ts"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "vite": ">=8.0.0"
+  },
+  "dependencies": {
+    "modern-screenshot": "^4.7.0"
+  },
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/client.js && node --check src/store.js && node --check src/mcp-server.js",
+    "test:mod": "claude plugin test claude-plugin"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

@@ -1,0 +1,5 @@
+node_modules/
+.page-annotator/
+claude-plugin/.claude-plugin/types/
+._*
+.DS_Store

@@ -1,0 +1,8 @@
+{
+  "name": "page-annotator-inbox",
+  "version": "0.1.0",
+  "description": "Puts page annotations sent from the vite-plugin-page-annotator browser UI into the prompt box",
+  "author": {
+    "name": "sean liu"
+  }
+}
