@@ -5,9 +5,10 @@
 First release.
 
 - Vite plugin that tags JSX elements with `data-loc` (file:line:column) in dev and injects the annotation UI.
-- In-page UI: pick an element, write what should change, optional element screenshot, drafts list, send.
+- In-page UI: hold ⌘ (Ctrl) to hover and click an element to pick it, ⌘+Enter to send; or lock the mode with Alt+A. Pick an element, write what should change, optional element screenshot, drafts list, send.
 - Toggle with ⌘⇧2 / Ctrl+Shift+2 (remembered); settings panel (right-click ⠿) with language, custom fix prompt and history.
 - Queue in `<root>/.page-annotator/` with `pending → delivered → done` states.
 - `page-annotator-mcp` stdio MCP server: `get_page_annotations`, `mark_annotations_done`, `clear_page_annotations`.
+- Routing between agents: each MCP server registers itself as online, every sent batch carries a `target` (the most recently used agent by default, changeable in settings) and each agent only reads its own.
 - Claude Code plugin `page-annotator-inbox` that puts each sent prompt into the prompt box.
 - English by default, Chinese available (`pageAnnotator({ lang: 'zh' })` or the settings panel).

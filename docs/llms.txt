@@ -14,7 +14,7 @@ When a user asks you to install or integrate `vite-plugin-page-annotator` into t
 ### Step 1: Install the devDependency
 Detect the project's package manager (`package-lock.json` -> `npm`, `pnpm-lock.yaml` -> `pnpm`, `yarn.lock` -> `yarn`, `bun.lockb` / `bun.lock` -> `bun`) and install:
 ```bash
-npm i -D github:shinelikeamillion/vite-plugin-page-annotator
+npm i -D vite-plugin-page-annotator
 ```
 
 ### Step 2: Register `pageAnnotator()` in `vite.config.ts` / `vite.config.js`

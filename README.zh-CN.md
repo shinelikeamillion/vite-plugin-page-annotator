@@ -26,7 +26,7 @@
 请帮我把 `vite-plugin-page-annotator` 集成到当前 Vite 项目中，以便我在浏览器里点选标注元素并直接发给你修改：
 
 1. 使用当前项目的包管理器安装开发依赖：
-   `npm i -D github:shinelikeamillion/vite-plugin-page-annotator`（或对应的 pnpm / yarn / bun 命令）。
+   `npm i -D vite-plugin-page-annotator`（或对应的 pnpm / yarn / bun 命令）。
 2. 打开 `vite.config.ts` 或 `vite.config.js`，引入 `import { pageAnnotator } from 'vite-plugin-page-annotator'`，并将 `pageAnnotator({ lang: 'zh' })` 放在 `plugins` 数组的【第一个位置】（必须在 `@vitejs/plugin-react` 等框架插件之前，以便在编译前注入 JSX 源码行列位置 `data-loc`）。
 3. 检查 `.gitignore`，如果还没有 `.page-annotator/`，请将其添加进去。
 4. 配置 MCP 服务，让你可以直接读取和标记我的页面标注：
@@ -133,7 +133,7 @@ args = ["page-annotator-mcp", "--root", "/path/to/your/project"]
 ### 1. 安装依赖
 
 ```bash
-npm i -D github:shinelikeamillion/vite-plugin-page-annotator
+npm i -D vite-plugin-page-annotator
 ```
 
 ### 2. 配置 `vite.config.ts`

@@ -26,7 +26,7 @@ Don't want to touch config files manually? Copy the prompt below and paste it in
 Please integrate `vite-plugin-page-annotator` into this Vite project so I can annotate UI elements in the browser and send them to you:
 
 1. Install the dev dependency using this project's package manager:
-   `npm i -D github:shinelikeamillion/vite-plugin-page-annotator` (or pnpm/yarn/bun equivalent).
+   `npm i -D vite-plugin-page-annotator` (or pnpm/yarn/bun equivalent).
 2. In `vite.config.ts` / `vite.config.js`, import `{ pageAnnotator } from 'vite-plugin-page-annotator'` and place `pageAnnotator()` as the FIRST item in the `plugins` array (before `@vitejs/plugin-react` or other framework plugins so JSX source locations are tagged before compilation).
 3. Add `.page-annotator/` to `.gitignore` if it isn't already ignored.
 4. Set up the MCP server so you can read and resolve my page annotations directly:
@@ -133,7 +133,7 @@ Every time you click **Send** on the in-page toolbar, the formatted fix prompt (
 ### 1. Install the package
 
 ```bash
-npm i -D github:shinelikeamillion/vite-plugin-page-annotator
+npm i -D vite-plugin-page-annotator
 ```
 
 ### 2. Add to `vite.config.ts`
