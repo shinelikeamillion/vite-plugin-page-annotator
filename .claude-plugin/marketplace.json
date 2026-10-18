@@ -1,6 +1,9 @@
 {
   "name": "page-annotator",
-  "owner": { "name": "sean liu" },
+  "description": "Claude Code plugin for vite-plugin-page-annotator: page annotations land in the prompt box",
+  "owner": {
+    "name": "sean liu"
+  },
   "plugins": [
     {
       "name": "page-annotator-inbox",
