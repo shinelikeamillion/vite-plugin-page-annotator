@@ -20,6 +20,7 @@
       popHint: '右键退出标注 · ↑↓ 切换父/子元素', dragPop: '拖动移动标注框',
       grip: '拖动移动工具栏，双击复位，右键打开设置', toggle: '◎ 标注', toggleTip: '按住 ⌘ 悬停选择、点击标注；点这里或 Alt+A 锁定标注模式，右键退出',
       count: (n) => `${n} 条`, countTip: '查看 / 修改全部标注', clear: '清空', clearTip: '清空全部', send: '发送', sendTip: '⌘+Enter',
+      welcome: (hold, keys) => `按住 ${hold} 点元素即可标注 · ${keys} 隐藏工具栏`,
       confirmClear: (n) => `清空全部 ${n} 条标注？`, libFail: '截图库加载失败',
       copiedBoth: '已复制 prompt 和截图：⌘V 粘贴文字，Ctrl+V 粘贴图片（Claude Code / Codex 终端）',
       copiedText: '已复制 prompt 到剪贴板', copiedNone: '剪贴板不可用，可在 Claude / Codex 里说"处理页面标注"',
@@ -41,6 +42,7 @@
       popHint: 'Right-click to exit · ↑↓ parent / child', dragPop: 'Drag to move',
       grip: 'Drag to move, double-click to reset, right-click for settings', toggle: '◎ Annotate', toggleTip: 'Hold ⌘ to hover and click to annotate; click here or Alt+A to lock the mode, right-click to exit',
       count: (n) => `${n} item${n === 1 ? '' : 's'}`, countTip: 'View / edit all annotations', clear: 'Clear', clearTip: 'Clear all', send: 'Send', sendTip: '⌘+Enter',
+      welcome: (hold, keys) => `Hold ${hold} and click an element to annotate · ${keys} hides this toolbar`,
       confirmClear: (n) => `Clear all ${n} annotations?`, libFail: 'Could not load the screenshot library',
       copiedBoth: 'Prompt and screenshot copied: ⌘V pastes text, Ctrl+V pastes the image (Claude Code / Codex terminal)',
       copiedText: 'Prompt copied to the clipboard', copiedNone: 'Clipboard unavailable; ask Claude / Codex to "handle the page annotations"',
@@ -207,10 +209,14 @@
 <div class="toast" hidden></div>`;
   document.documentElement.appendChild(host);
 
-  // the whole tool stays hidden and inert until ⌘⇧2 (Ctrl+Shift+2 elsewhere); the choice is remembered
+  // shown on the first visit; ⌘⇧2 (Ctrl+Shift+2 elsewhere) hides it and the choice is remembered
   const ENABLED_KEY = 'page-annotator:enabled';
-  let enabled = false;
-  try { enabled = localStorage.getItem(ENABLED_KEY) === '1'; } catch { /* storage off */ }
+  let enabled = true, firstRun = false;
+  try {
+    const stored = localStorage.getItem(ENABLED_KEY);
+    firstRun = stored === null;
+    enabled = stored !== '0';
+  } catch { /* storage off */ }
   host.style.display = enabled ? '' : 'none';
 
   const $ = (s) => root.querySelector(s);
@@ -686,12 +692,12 @@
 
   // ---------- send ----------
   let toastTimer;
-  function toast(msg, isErr = false) {
+  function toast(msg, isErr = false, ms = isErr ? 6000 : 3500) {
     toastEl.textContent = msg;
     toastEl.classList.toggle('err', isErr);
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toastEl.hidden = true), isErr ? 6000 : 3500);
+    toastTimer = setTimeout(() => (toastEl.hidden = true), ms);
   }
 
   btnClear.addEventListener('click', () => {
@@ -1097,6 +1103,10 @@
   applyLang();
   placeBar();
   refreshAgents();
+  if (firstRun) {
+    try { localStorage.setItem(ENABLED_KEY, '1'); } catch { /* storage off */ }
+    toast(t('welcome', isMac ? '⌘' : 'Ctrl', isMac ? '⌘⇧2' : 'Ctrl+Shift+2'), false, 8000);
+  }
   requestAnimationFrame(frame);
   window.__pageAnnotator = { show: () => setEnabled(true), hide: () => setEnabled(false), open: () => { setEnabled(true); setActive(true); }, close: () => setActive(false), get items() { return items; } };
 })();

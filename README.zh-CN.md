@@ -40,7 +40,7 @@
        }
      }
    - 如果我使用 OpenAI Codex（`~/.codex/config.toml` 或 `.codex/config.toml`），请同时告诉我对应的 `[mcp_servers.page-annotator]` 配置片段（带 `--root` 指向当前项目绝对路径）。
-5. 完成后检查配置是否正常，并提醒我启动开发服务器后按 `Cmd+Shift+2`（Windows/Linux 按 `Ctrl+Shift+2`）呼出页面标注工具栏。
+5. 完成后检查配置是否正常，并提醒我启动开发服务器：首次打开页面会直接显示标注工具栏，按 `Cmd+Shift+2`（Windows/Linux 按 `Ctrl+Shift+2`）可隐藏或呼出。
 ```
 
 ---
@@ -126,7 +126,7 @@ args = ["page-annotator-mcp", "--root", "/path/to/your/project"]
 
 ### 环境要求
 
-- **Vite 8 及以上**（使用 Vite 原生 `parseAst` 解析 JSX/TSX 并注入 `data-loc`，无需额外编译依赖）
+- **Vite 8 及以上**才能拿到精确源码位置（使用 Vite 原生 `parseAst` 解析 JSX/TSX 并注入 `data-loc`，无需额外编译依赖）。Vite 7 也能用，启动时会给出警告，标注改用 CSS 选择器定位。
 - **Node.js 20.19 及以上**
 - **框架支持：** 任意 JSX/TSX 框架（**React、Preact、Solid、Qwik** 等）均可获得精确的 `文件:行:列` 源码定位；其他页面（Vue、Svelte、原生 HTML）也能正常使用，自动回退为 CSS Selector。
 
@@ -176,7 +176,7 @@ export default defineConfig({
 ## 使用教程
 
 1. 运行 `npm run dev`，在浏览器打开开发页面。
-2. 按 **⌘⇧2**（Windows/Linux 为 `Ctrl+Shift+2`）呼出悬浮工具栏。默认隐藏不打扰，开关状态会自动记住。
+2. 首次打开页面时右下角会直接显示悬浮工具栏，终端里 Vite 地址下方也会有提示。按 **⌘⇧2**（Windows/Linux 为 `Ctrl+Shift+2`）可隐藏或呼出，开关状态会自动记住。
 3. **按住 ⌘**（Windows/Linux 为 `Ctrl`）进入标注模式：按住期间悬停即高亮元素并显示 `文件:行:列`，左键点击选中（不会触发页面原有点击）；松开即恢复正常浏览。想不按键持续标注，可点「◎ 标注」或按 **Alt+A** 锁定。
 4. 选中后输入框保持打开，松开 ⌘ 直接打字即可。
 5. 输入修改需求，按 **Enter** 保存（**Shift+Enter** 换行）。需要提供视觉参考时勾选「附带元素截图」。

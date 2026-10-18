@@ -40,7 +40,7 @@ Please integrate `vite-plugin-page-annotator` into this Vite project so I can an
        }
      }
    - If I use OpenAI Codex (`~/.codex/config.toml` or `.codex/config.toml`), show me the `[mcp_servers.page-annotator]` snippet with `--root` pointing to this project's absolute path.
-5. Verify the config compiles cleanly (`npx vite --version` or build check) and remind me to run the dev server and press `Cmd+Shift+2` (`Ctrl+Shift+2`) in the browser to open the annotator toolbar.
+5. Verify the config compiles cleanly (`npx vite --version` or build check) and remind me to run the dev server: the annotator toolbar shows up in the browser on first visit (`Cmd+Shift+2` / `Ctrl+Shift+2` hides or shows it).
 ```
 
 ---
@@ -126,7 +126,7 @@ Every time you click **Send** on the in-page toolbar, the formatted fix prompt (
 
 ### Requirements
 
-- **Vite 8+** (uses Vite's native `parseAst` to inject `data-loc` on JSX/TSX elements with zero extra parser dependencies)
+- **Vite 8+** for exact source locations (uses Vite's native `parseAst` to inject `data-loc` on JSX/TSX elements with zero extra parser dependencies). Vite 7 also works, with a startup warning, but annotations fall back to CSS selectors.
 - **Node.js 20.19+**
 - **Frameworks:** Any JSX/TSX framework (**React, Preact, Solid, Qwik**, etc.) gets exact `file:line:column` source locations. Non-JSX pages (Vue, Svelte, plain HTML) work seamlessly using automatic CSS selectors.
 
@@ -176,7 +176,7 @@ Add `.page-annotator/` to your `.gitignore`:
 ## How to Annotate Your Page
 
 1. Start your dev server (`npm run dev`) and open your app in the browser.
-2. Press **⌘⇧2** (`Ctrl+Shift+2` on Windows/Linux) to wake up the floating toolbar. It stays hidden by default until you toggle it, and remembers your preference across reloads.
+2. The floating toolbar appears in the bottom-right corner on your first visit, and the terminal prints a reminder under Vite's URLs. Press **⌘⇧2** (`Ctrl+Shift+2` on Windows/Linux) to hide or show it; the choice is remembered across reloads.
 3. **Hold ⌘** (`Ctrl` on Windows/Linux): while it is down, hovering highlights elements with their exact `file:line:column` badge and a **click** picks one. Let go and the page works normally again. To stay in annotation mode without holding the key, click **◎ Annotate** or press **Alt+A**.
 4. The note box stays open after you release ⌘, so just type.
 5. Type what you want changed and press **Enter** to save (**Shift+Enter** for a newline). Check **Attach element screenshot** if visual context helps.

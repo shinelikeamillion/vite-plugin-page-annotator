@@ -4,11 +4,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { parseAst } from 'vite';
+import { parseAst, version as viteVersion } from 'vite';
 import { DEFAULT_PROMPTS, addSubmission, listAgents, readQueue, toPrompt, writeOutbox } from './store.js';
 
 const CLIENT_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'client.js');
 const BASE = '/__annotator';
+// parseAst only understands JSX/TSX from Vite 8 (Oxc); older Vites fall back to CSS selectors
+const VITE_MAJOR = Number.parseInt(viteVersion, 10);
+const HAS_JSX_PARSER = VITE_MAJOR >= 8;
 const SCREENSHOT_LIB = createRequire(import.meta.url).resolve('modern-screenshot/dist/index.js');
 
 function collectInsertions(ast, out) {
@@ -79,11 +82,18 @@ export function pageAnnotator(options = {}) {
     name: 'page-annotator:locator',
     apply: 'serve',
     enforce: 'pre',
-    configResolved(config) { root = config.root; },
+    configResolved(config) {
+      root = config.root;
+      if (!HAS_JSX_PARSER && options.locator !== false) {
+        config.logger.warn(options.lang === 'zh'
+          ? `[page-annotator] 当前是 Vite ${viteVersion}，源码定位（文件:行:列）需要 Vite 8 及以上，标注会改用 CSS 选择器。升级到 Vite 8 即可拿到精确位置；不需要的话设 locator: false 关掉这条提示。`
+          : `[page-annotator] Vite ${viteVersion} detected. Source locations (file:line:column) need Vite 8+, so annotations fall back to CSS selectors. Upgrade to Vite 8 for exact locations, or set locator: false to silence this warning.`);
+      }
+    },
     transform(code, id) {
       const file = id.split('?')[0];
       if (!/\.[jt]sx$/.test(file) || file.includes('/node_modules/')) return null;
-      if (options.locator === false) return null;
+      if (options.locator === false || !HAS_JSX_PARSER) return null;
       const out = addSourceLocations(code, file, path.relative(root, file));
       return out == null ? null : { code: out, map: null };
     },
@@ -104,6 +114,16 @@ export function pageAnnotator(options = {}) {
       ];
     },
     configureServer(server) {
+      // printed under Vite's own URLs, since the toolbar is easy to miss once hidden
+      const printUrls = server.printUrls.bind(server);
+      server.printUrls = () => {
+        printUrls();
+        const keys = process.platform === 'darwin' ? '⌘⇧2' : 'Ctrl+Shift+2';
+        const hold = process.platform === 'darwin' ? '⌘' : 'Ctrl';
+        server.config.logger.info(options.lang === 'zh'
+          ? `  \x1b[32m➜\x1b[0m  \x1b[1m标注工具\x1b[0m: 在页面里按 ${keys} 显示/隐藏，按住 ${hold} 点元素标注`
+          : `  \x1b[32m➜\x1b[0m  \x1b[1mAnnotator\x1b[0m: press ${keys} in the page to show/hide, hold ${hold} and click an element to annotate`);
+      };
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith(BASE)) return next();
         const send = (status, type, body) => {
