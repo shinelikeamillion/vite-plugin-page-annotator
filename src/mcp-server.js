@@ -47,14 +47,14 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => process
 
 const INSTRUCTIONS = `The user picks elements in the browser preview of their app and writes what should change ("page annotations").
 When the user mentions page annotations, annotations, or asks to apply / handle them (e.g. "按标注改", "处理页面标注"), call get_page_annotations.
-It returns JSON. Each annotation has a note (the request) and loc (source location, file:line:column): open the code at loc. text is the element's text, to tell apart elements rendered by the same line; screenshot is the path of an element screenshot.
+It returns JSON. Each annotation has a note (the request) and loc (source location, file:line:column): open the code at loc. text is the element's text, to tell apart elements rendered by the same line; screenshot is the path of an element screenshot. An annotation with an elements array (instead of loc) applies its note to every listed element, each with its own loc and text.
 When done, call mark_annotations_done with the ids you handled.`;
 
 const TOOLS = [
   {
     name: 'get_page_annotations',
     description:
-      'Read the change requests the user submitted from the browser preview (picked element + what to change). Only annotations the user sent to this agent (or to no agent in particular) are returned. Returns JSON and marks those items as delivered. Each has id, note (the request) and loc (source location, file:line:column), and may have text (the element text); selector is given when there is no loc. Items with a screenshot (file path) also come back as image content blocks.',
+      'Read the change requests the user submitted from the browser preview (picked element + what to change). Only annotations the user sent to this agent (or to no agent in particular) are returned. Returns JSON and marks those items as delivered. Each has id, note (the request) and loc (source location, file:line:column), and may have text (the element text); selector is given when there is no loc. A note that covers several elements has an elements array (each with loc / text) instead. Items with a screenshot (file path) also come back as image content blocks.',
     inputSchema: {
       type: 'object',
       properties: {

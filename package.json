@@ -67,8 +67,11 @@
   "dependencies": {
     "modern-screenshot": "^4.7.0"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "check": "node --check src/index.js && node --check src/client.js && node --check src/store.js && node --check src/mcp-server.js",
+    "check": "node --check src/index.js && node --check src/client.js && node --check src/store.js && node --check src/mcp-server.js && node --check packages/next/src/server.js",
     "test": "node --test test/*.test.js",
     "test:mod": "claude plugin test claude-plugin"
   },
@@ -76,3 +79,4 @@
     "vite": "^8.3.4"
   }
 }
+

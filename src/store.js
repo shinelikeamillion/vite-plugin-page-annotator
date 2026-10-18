@@ -102,6 +102,7 @@ export function writeOutbox(root, items, prompt, target = items[0]?.target) {
 
 // ---------- agents: which MCP clients (Claude Code, Codex, ...) are online for this project ----------
 // Each MCP server process keeps <root>/.page-annotator/agents/<agent>-<pid>.json fresh while it runs.
+// The Claude Code inbox plugin writes one too (no pid: it has none to give, so only lastSeen ages it out).
 const AGENT_RE = /^[a-z0-9_-]{1,32}$/;
 const AGENT_STALE_MS = 45_000;
 const agentsDir = (root) => path.join(dir(root), 'agents');
@@ -145,7 +146,7 @@ export function listAgents(root, now = Date.now()) {
     const file = path.join(agentsDir(root), name);
     let a;
     try { a = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { continue; }
-    if (!validAgent(a.agent) || now - a.lastSeen > AGENT_STALE_MS || !pidAlive(a.pid)) {
+    if (!validAgent(a.agent) || now - a.lastSeen > AGENT_STALE_MS || (a.pid && !pidAlive(a.pid))) {
       fs.rmSync(file, { force: true });
       continue;
     }
@@ -157,6 +158,43 @@ export function listAgents(root, now = Date.now()) {
     .map(({ agent, client, lastActive }) => ({ agent, client, lastActive }));
 }
 
+/** Recent items for the page's history tab, newest first. */
+export function historyItems(root, limit = 300) {
+  return readQueue(root).items.slice(-limit).reverse().map((it) => ({
+    id: it.id, status: it.status, note: it.note, loc: it.loc, selector: it.selector, page: it.page, createdAt: it.createdAt, target: it.target,
+    elements: Array.isArray(it.elements) ? it.elements.map((el) => ({ loc: el?.loc, selector: el?.selector })) : undefined,
+    hasShot: typeof it.screenshot === 'string' && fs.existsSync(it.screenshot),
+  }));
+}
+
+/** Put sent items back in the queue as pending (same ids, same screenshots), for the given agent. */
+export function resendItems(root, ids, target) {
+  const want = new Set((Array.isArray(ids) ? ids : []).map(Number));
+  const q = readQueue(root);
+  const to = validAgent(target);
+  const picked = q.items.filter((it) => want.has(it.id));
+  for (const it of picked) {
+    it.status = 'pending';
+    it.resentAt = new Date().toISOString();
+    if (to) it.target = to;
+    else delete it.target;
+  }
+  if (picked.length) writeQueue(root, q);
+  return picked;
+}
+
+/** Remove items (and their screenshots) from the queue; returns the ids removed. */
+export function deleteItems(root, ids) {
+  const want = new Set((Array.isArray(ids) ? ids : []).map(Number));
+  const q = readQueue(root);
+  const gone = q.items.filter((it) => want.has(it.id));
+  if (!gone.length) return [];
+  gone.forEach(removeScreenshot);
+  q.items = q.items.filter((it) => !want.has(it.id));
+  writeQueue(root, q);
+  return gone.map((it) => it.id);
+}
+
 export function clearQueue(root) {
   const q = readQueue(root);
   q.items.forEach(removeScreenshot);
@@ -164,12 +202,19 @@ export function clearQueue(root) {
   return q.items.length;
 }
 
-/** Compact JSON handed to agents: loc is enough to find the code, the rest only disambiguates. */
+/** Where one element is: loc is enough to find the code, the rest only disambiguates. */
+function compactElement(el, out = {}) {
+  if (el.loc) out.loc = el.loc;
+  else if (el.selector) out.selector = el.selector;
+  if (el.text) out.text = el.text.length > 40 ? `${el.text.slice(0, 40)}…` : el.text;
+  return out;
+}
+
+/** Compact JSON handed to agents; a note on several elements lists them under `elements`. */
 function compact(it) {
   const out = { id: it.id, note: it.note };
-  if (it.loc) out.loc = it.loc;
-  else if (it.selector) out.selector = it.selector;
-  if (it.text) out.text = it.text.length > 40 ? `${it.text.slice(0, 40)}…` : it.text;
+  if (Array.isArray(it.elements)) out.elements = it.elements.map((el) => compactElement(el || {}));
+  else compactElement(it, out);
   if (it.screenshot) out.screenshot = it.screenshot;
   return out;
 }
@@ -194,6 +239,7 @@ export const DEFAULT_PROMPTS = {
     'Please make the code changes for the {{count}} page annotations below. Each one is an element I picked in the page preview plus what I want changed:',
     '- `loc` is where the element is in the source (file:line:column); open that spot and edit it',
     '- `text` is the text on the element; use it to tell which one is meant when one line of code renders several elements',
+    '- `elements` (instead of `loc`) means the note applies to all the listed elements; each has its own `loc` / `text`',
     '- `screenshot` (when present) is a picture of the element at the time; look at it before editing',
     '',
     '{{json}}',
@@ -204,6 +250,7 @@ export const DEFAULT_PROMPTS = {
     '请按下面 {{count}} 条页面标注修改代码。每条是我在预览页面上点选的元素和修改需求：',
     '- `loc` 是元素在源码里的位置（文件:行:列），直接打开这个位置修改',
     '- `text` 是元素上的文字，同一行代码渲染出多个元素时，用它确认是哪一个',
+    '- `elements`（代替 `loc`）表示这条需求同时作用于列出的多个元素，每个元素有自己的 `loc` / `text`',
     '- `screenshot`（如果有）是该元素当时的截图文件，先打开看一下再改',
     '',
     '{{json}}',

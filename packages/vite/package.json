@@ -1,0 +1,67 @@
+{
+  "name": "vite-plugin-page-annotator",
+  "version": "0.1.0",
+  "description": "Click elements on your live Vite dev page, write what should change, and send exact JSX source locations (file:line:column) and element screenshots straight to Claude Code or OpenAI Codex via MCP, plugin, or clipboard.",
+  "type": "module",
+  "license": "MIT",
+  "author": "sean liu",
+  "homepage": "https://shinelikeamillion.github.io/vite-plugin-page-annotator/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shinelikeamillion/vite-plugin-page-annotator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shinelikeamillion/vite-plugin-page-annotator/issues"
+  },
+  "keywords": [
+    "vite",
+    "vite-plugin",
+    "page-annotator",
+    "annotate",
+    "annotation",
+    "claude-code",
+    "claude",
+    "codex",
+    "openai-codex",
+    "mcp",
+    "mcp-server",
+    "devtools",
+    "ai-coding",
+    "visual-feedback",
+    "click-to-source",
+    "jsx",
+    "react",
+    "preact",
+    "solid"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./store": {
+      "types": "./src/store.d.ts",
+      "default": "./src/store.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./index.d.ts",
+  "bin": {
+    "page-annotator-mcp": "./src/mcp-server.js"
+  },
+  "files": [
+    "index.d.ts",
+    "src",
+    "README.md",
+    "README.zh-CN.md"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "peerDependencies": {
+    "vite": ">=7.0.0"
+  },
+  "dependencies": {
+    "modern-screenshot": "^4.7.0"
+  }
+}

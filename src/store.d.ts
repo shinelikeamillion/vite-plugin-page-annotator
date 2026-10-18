@@ -2,6 +2,8 @@ export interface QueueItem {
   id: number;
   status: 'pending' | 'delivered' | 'done';
   note: string;
+  /** set when one note covers several elements; each has its own loc / selector / text */
+  elements?: { loc?: string | null; selector?: string; text?: string; [key: string]: unknown }[];
   screenshot?: string;
   /** agent id the annotation was sent to ('claude', 'codex', ...); absent = any agent */
   target?: string;
@@ -12,6 +14,9 @@ export function readQueue(root: string): { nextId: number; items: QueueItem[] };
 export function writeQueue(root: string, q: { nextId: number; items: QueueItem[] }): void;
 export function addSubmission(root: string, payload: unknown): QueueItem[];
 export function clearQueue(root: string): number;
+export function historyItems(root: string, limit?: number): Record<string, unknown>[];
+export function resendItems(root: string, ids: number[], target?: string): QueueItem[];
+export function deleteItems(root: string, ids: number[]): number[];
 export function toJson(items: QueueItem[]): Record<string, unknown>;
 export const DEFAULT_PROMPTS: Record<'zh' | 'en', string>;
 export function toPrompt(items: QueueItem[], options?: { lang?: string; template?: string }): string;

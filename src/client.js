@@ -17,7 +17,7 @@
       notePh: '这里要怎么改？Enter 保存，Shift+Enter 换行，⌘+Enter 发送', shotOpt: '附带元素截图',
       parent: '↑ 父', parentTip: '改选父元素（⌥↑，输入框为空时直接 ↑）', child: '↓ 子', childTip: '改选子元素（⌥↓，输入框为空时直接 ↓）',
       del: '删除', copyShot: '复制截图', copyShotTip: '把这条的截图复制到剪贴板', cancel: '取消', save: '保存',
-      popHint: '右键退出标注 · ↑↓ 切换父/子元素', dragPop: '拖动移动标注框',
+      popHint: '⌘+点击 追加/移除元素 · ↑↓ 切换父/子元素 · 右键退出', nEls: (n) => `${n} 个元素`, dragPop: '拖动移动标注框',
       grip: '拖动移动工具栏，双击复位，右键打开设置', toggle: '◎ 标注', toggleTip: '按住 ⌘ 悬停选择、点击标注；点这里或 Alt+A 锁定标注模式，右键退出',
       count: (n) => `${n} 条`, countTip: '查看 / 修改全部标注', clear: '清空', clearTip: '清空全部', send: '发送', sendTip: '⌘+Enter',
       welcome: (hold, keys) => `按住 ${hold} 点元素即可标注 · ${keys} 隐藏工具栏`,
@@ -32,6 +32,9 @@
       tabSettings: '设置', tabHistory: '历史', hAll: '全部', hPending: '待处理', hDone: '已完成', hEmpty: '没有记录',
       hLoadFail: (m) => `读取历史失败：${m}`, st_pending: '待处理', st_delivered: '已读取', st_done: '已完成',
       hHelp: '已发送的标注，存在项目根目录 .page-annotator/（已完成的保留最近 200 条）', refresh: '刷新',
+      hAllSel: '全选', hSelected: (n) => `已选 ${n} 条`, hResend: '再次发送', hDelete: '删除',
+      hResent: (n, to) => `已再次发送 ${n} 条${to}，prompt 已复制`, hResentNoCopy: (n, to) => `已再次发送 ${n} 条${to}`,
+      hConfirmDel: (n) => `删除选中的 ${n} 条记录（连同截图）？`, hDeleted: (n) => `已删除 ${n} 条`, hActFail: (m) => `操作失败：${m}`,
       targetLabel: '发送给', targetHelp: '自动：发给最近在用的工具（最近新开会话、或最近处理过标注的那个）。只有收到的工具能通过 MCP 读到这批标注',
       sentTo: (name) => `→ ${name}`, auto: (name) => (name ? `自动（现在是 ${name}）` : '自动（暂无在线工具）'), offline: (name) => `${name}（不在线）`,
     },
@@ -39,7 +42,7 @@
       notePh: 'What should change here? Enter to save, Shift+Enter for a new line, ⌘+Enter to send', shotOpt: 'Attach element screenshot',
       parent: '↑ Parent', parentTip: 'Pick the parent element (⌥↑, or ↑ while the box is empty)', child: '↓ Child', childTip: 'Pick a child element (⌥↓, or ↓ while the box is empty)',
       del: 'Delete', copyShot: 'Copy screenshot', copyShotTip: 'Copy this annotation\'s screenshot', cancel: 'Cancel', save: 'Save',
-      popHint: 'Right-click to exit · ↑↓ parent / child', dragPop: 'Drag to move',
+      popHint: '⌘+click adds / removes elements · ↑↓ parent / child · right-click exits', nEls: (n) => `${n} elements`, dragPop: 'Drag to move',
       grip: 'Drag to move, double-click to reset, right-click for settings', toggle: '◎ Annotate', toggleTip: 'Hold ⌘ to hover and click to annotate; click here or Alt+A to lock the mode, right-click to exit',
       count: (n) => `${n} item${n === 1 ? '' : 's'}`, countTip: 'View / edit all annotations', clear: 'Clear', clearTip: 'Clear all', send: 'Send', sendTip: '⌘+Enter',
       welcome: (hold, keys) => `Hold ${hold} and click an element to annotate · ${keys} hides this toolbar`,
@@ -54,6 +57,9 @@
       tabSettings: 'Settings', tabHistory: 'History', hAll: 'All', hPending: 'Open', hDone: 'Done', hEmpty: 'Nothing here',
       hLoadFail: (m) => `Could not load history: ${m}`, st_pending: 'open', st_delivered: 'read', st_done: 'done',
       hHelp: 'Sent annotations, kept in .page-annotator/ at the project root (the latest 200 done ones)', refresh: 'Refresh',
+      hAllSel: 'Select all', hSelected: (n) => `${n} selected`, hResend: 'Send again', hDelete: 'Delete',
+      hResent: (n, to) => `Sent ${n} again${to}; prompt copied`, hResentNoCopy: (n, to) => `Sent ${n} again${to}`,
+      hConfirmDel: (n) => `Delete the ${n} selected record${n === 1 ? '' : 's'} (and screenshots)?`, hDeleted: (n) => `Deleted ${n}`, hActFail: (m) => `Failed: ${m}`,
       targetLabel: 'Send to', targetHelp: 'Auto: the tool used most recently (newest session, or the last one to handle annotations). Only the receiving tool can read the batch over MCP',
       sentTo: (name) => `→ ${name}`, auto: (name) => (name ? `Auto (now ${name})` : 'Auto (no tool online)'), offline: (name) => `${name} (offline)`,
     },
@@ -83,6 +89,9 @@
     display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.35); border: 2px solid #fff; }
   .pin.lost { background: #8a8796; }
   .pin:hover { transform: scale(1.12); }
+  .sel { position: fixed; border: 2px solid #7c5cff; background: rgba(124,92,255,.12); border-radius: 3px; pointer-events: none; }
+  .sel-n { position: absolute; left: -2px; top: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 3px 0 4px 0; background: #7c5cff; color: #fff;
+    font: 600 10px/16px ui-monospace, Menlo, monospace; text-align: center; }
   .outline { position: fixed; border: 1px dashed rgba(124,92,255,.7); border-radius: 3px; pointer-events: none; }
   .pop { position: fixed; width: 320px; background: #1d1b26; color: #e9e6ff; border-radius: 10px; padding: 10px; pointer-events: auto;
     box-shadow: 0 10px 30px rgba(0,0,0,.45); border: 1px solid #353146; }
@@ -143,6 +152,12 @@
   .hrow .st.pending { background: #3a2f12; color: #f5c451; }
   .hrow .st.done { background: #13311f; color: #5fd38d; }
   .hrow img { width: 56px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #353146; cursor: zoom-in; flex: none; }
+  .hrow { cursor: pointer; border-radius: 6px; }
+  .hrow:hover { background: #24212f; }
+  .hrow.on { background: #2a2738; }
+  .hrow .hcheck { accent-color: #7c5cff; margin: 3px 0 0; flex: none; }
+  .hist-actions { margin-top: 6px; }
+  .hist-actions .shot-opt { margin-top: 0; }
   .hist-empty { color: #8a8796; padding: 12px 0; text-align: center; }
   .set-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
   .set-row select { background: #12111a; color: #fff; border: 1px solid #353146; border-radius: 6px; padding: 4px 6px; font-size: 12px; }
@@ -158,6 +173,7 @@
   [hidden] { display: none !important; }
 </style>
 <div class="outlines"></div>
+<div class="sels"></div>
 <div class="hl" hidden><span class="hl-label"></span></div>
 <div class="pins"></div>
 <div class="pop" hidden>
@@ -182,6 +198,10 @@
     <div class="row hist-filter">
       <button class="hf on" data-f="all" data-t="hAll"></button><button class="hf" data-f="pending" data-t="hPending"></button><button class="hf" data-f="done" data-t="hDone"></button>
       <span class="grow"></span><button class="hist-refresh" data-t="refresh"></button>
+    </div>
+    <div class="row hist-actions">
+      <label class="shot-opt"><input type="checkbox" class="hist-all"> <span class="hist-selcount"></span></label>
+      <span class="grow"></span><button class="danger hist-del" data-t="hDelete"></button><button class="primary hist-resend" data-t="hResend"></button>
     </div>
     <div class="hist-rows"></div>
     <div class="set-help" data-t="hHelp"></div>
@@ -220,7 +240,7 @@
   host.style.display = enabled ? '' : 'none';
 
   const $ = (s) => root.querySelector(s);
-  const hl = $('.hl'), hlLabel = $('.hl-label'), pins = $('.pins'), outlines = $('.outlines');
+  const hl = $('.hl'), hlLabel = $('.hl-label'), pins = $('.pins'), outlines = $('.outlines'), sels = $('.sels');
   const pop = $('.pop'), popMeta = $('.pop .meta'), popText = $('.pop textarea');
   const btnToggle = $('.toggle'), btnSend = $('.send'), btnClear = $('.clear'), count = $('.count'), targetSel = $('.set-target');
   const toastEl = $('.toast'), list = $('.list');
@@ -230,14 +250,15 @@
     try { localStorage.setItem(SHOT_PREF_KEY, shotCheck.checked ? '1' : '0'); } catch { /* storage off */ }
   });
 
-  /** @type {{el: Element|null, note: string, info: any, wantShot: boolean, shot?: Promise<string|null>}[]} */
+  // one note can cover several elements (⌘+click more while the note box is open); els[i] matches infos[i]
+  /** @type {{els: (Element|null)[], note: string, infos: any[], wantShot: boolean, shot?: Promise<string|null>}[]} */
   let items = [];
   let active = false;
   let hoverEl = null;
-  /** editing: { el, index } — index null for a new item */
+  /** editing: { els, cur, index } — els[cur] follows ↑/↓; index null for a new item */
   let editing = null;
-  /** element highlighted from the list panel */
-  let previewEl = null;
+  /** elements highlighted from the list panel */
+  let previewEls = [];
   /** hover target came from ↑/↓, not the mouse */
   let kbNav = false;
   /** children we walked up from, so ↓ goes back the same way */
@@ -326,11 +347,16 @@
     box.style.width = `${r.width}px`; box.style.height = `${r.height}px`;
   }
 
-  function resolve(item) {
-    if (item.el && item.el.isConnected) return item.el;
-    try { item.el = document.querySelector(item.info.selector); } catch { item.el = null; }
-    return item.el;
+  /** The k-th element of an item, looked up again by selector after a reload or re-render. */
+  function resolveAt(item, k) {
+    const el = item.els[k];
+    if (el && el.isConnected) return el;
+    try { item.els[k] = document.querySelector(item.infos[k].selector); } catch { item.els[k] = null; }
+    return item.els[k];
   }
+  const resolveAll = (item) => item.infos.map((_, k) => resolveAt(item, k));
+  const resolve = (item) => resolveAll(item).find(Boolean) || null;
+  const locText = (item) => item.infos.map((info) => info.loc || info.selector || '').join('  ');
 
   function renderPins() {
     pins.textContent = '';
@@ -341,11 +367,17 @@
       pin.textContent = String(i + 1);
       pin.title = item.note;
       pin.classList.toggle('shot', !!item.wantShot);
-      pin.addEventListener('click', (e) => { e.stopPropagation(); const el = resolve(item); if (el) openEditor(el, i); });
+      pin.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const els = resolveAll(item).filter(Boolean);
+        if (els.length) openEditor(els, i);
+      });
       pins.appendChild(pin);
-      const o = document.createElement('div');
-      o.className = 'outline';
-      outlines.appendChild(o);
+      for (const _ of item.infos) {
+        const o = document.createElement('div');
+        o.className = 'outline';
+        outlines.appendChild(o);
+      }
     });
     count.textContent = t('count', items.length);
     btnSend.disabled = btnClear.disabled = items.length === 0;
@@ -355,33 +387,68 @@
 
   function frame() {
     if (!enabled) { requestAnimationFrame(frame); return; }
+    let n = 0;
     items.forEach((item, i) => {
-      const pin = pins.children[i], o = outlines.children[i];
+      const pin = pins.children[i];
       if (!pin) return;
-      const el = resolve(item);
-      if (!el) { pin.classList.add('lost'); o.hidden = true; return; }
-      pin.classList.remove('lost');
-      const r = el.getBoundingClientRect();
+      const els = resolveAll(item);
+      const showOutline = picking() || !!editing || !list.hidden;
+      els.forEach((el) => {
+        const o = outlines.children[n++];
+        if (!o) return;
+        o.hidden = !el || !showOutline;
+        if (el) placeBox(o, el.getBoundingClientRect());
+      });
+      const first = els.find(Boolean);
+      pin.classList.toggle('lost', !first);
+      if (!first) return;
+      const r = first.getBoundingClientRect();
       pin.style.left = `${Math.min(Math.max(r.right, 12), innerWidth - 12)}px`;
       pin.style.top = `${Math.min(Math.max(r.top, 12), innerHeight - 12)}px`;
-      o.hidden = !picking() && !editing && list.hidden;
-      placeBox(o, r);
     });
-    const target = editing ? editing.el : previewEl || (picking() ? hoverEl : null);
+    // the elements of the note being written (or hovered in the list), numbered when there are several
+    const selected = editing ? editing.els : previewEls;
+    drawSelection(selected);
+    // while the note box is open, holding ⌘ shows which element a click would add or remove
+    const adding = editing && held && hoverEl && hoverEl.isConnected ? hoverEl : null;
+    const target = adding || (editing ? editing.els[editing.cur] : previewEls.length ? null : picking() ? hoverEl : null);
     if (target && target.isConnected) {
       const r = target.getBoundingClientRect();
       hl.hidden = false;
-      hl.classList.toggle('picked', !!editing || target === previewEl);
+      hl.classList.toggle('picked', !!editing && !adding);
       placeBox(hl, r);
+      if (target !== labelFor) { labelFor = target; hlLabel.textContent = shortLabel(target); }
       hlLabel.classList.toggle('below', r.top < 28);
-      if (editing && !editing.dragged) positionPopover(r);
     } else {
       hl.hidden = true;
+    }
+    if (editing && !editing.dragged) {
+      const anchor = editing.els.find((el) => el.isConnected);
+      if (anchor) positionPopover(anchor.getBoundingClientRect());
     }
     besideBar(list);
     besideBar(setPanel);
     besideBar(toastEl);
     requestAnimationFrame(frame);
+  }
+
+  let labelFor = null;
+  function drawSelection(els) {
+    const live = els.filter((el) => el && el.isConnected);
+    while (sels.children.length < live.length) {
+      const box = document.createElement('div');
+      box.className = 'sel';
+      box.innerHTML = '<span class="sel-n"></span>';
+      sels.appendChild(box);
+    }
+    [...sels.children].forEach((box, k) => {
+      box.hidden = k >= live.length;
+      if (box.hidden) return;
+      placeBox(box, live[k].getBoundingClientRect());
+      const badge = box.firstChild;
+      badge.hidden = live.length < 2;
+      badge.textContent = String(k + 1);
+    });
   }
 
   function positionPopover(r) {
@@ -411,29 +478,48 @@
 
   function setHover(el) {
     hoverEl = el;
-    hlLabel.textContent = shortLabel(el);
+  }
+
+  function renderMeta() {
+    const { els, cur, index } = editing;
+    popMeta.textContent = (index != null ? `#${index + 1}  ` : '') + shortLabel(els[cur])
+      + (els.length > 1 ? `  · ${t('nEls', els.length)}` : '');
   }
 
   function moveEditTarget(dir) {
     if (!editing) return;
-    editing.el = step(editing.el, dir);
-    const label = shortLabel(editing.el);
-    popMeta.textContent = (editing.index != null ? `#${editing.index + 1}  ` : '') + label;
-    hlLabel.textContent = label;
+    const next = step(editing.els[editing.cur], dir);
+    // stepping onto an element that is already picked just moves the focus there
+    const at = editing.els.indexOf(next);
+    if (at > -1 && at !== editing.cur) editing.cur = at;
+    else editing.els[editing.cur] = next;
+    renderMeta();
   }
 
-  function openEditor(el, index = null) {
+  /** ⌘+click while the note box is open: add the element to this note, or drop it if already there. */
+  function toggleEditTarget(el) {
+    if (!editing) return;
     navTrail = [];
-    editing = { el, index };
+    const at = editing.els.indexOf(el);
+    if (at === -1) editing.els.push(el);
+    else if (editing.els.length > 1) editing.els.splice(at, 1);
+    editing.cur = editing.els.length - 1;
+    renderMeta();
+    popText.focus();
+  }
+
+  function openEditor(target, index = null) {
+    navTrail = [];
+    const els = Array.isArray(target) ? target.slice() : [target];
+    editing = { els, cur: els.length - 1, index };
     const existing = index != null ? items[index] : null;
-    popMeta.textContent = (index != null ? `#${index + 1}  ` : '') + shortLabel(el);
-    hlLabel.textContent = shortLabel(el);
+    renderMeta();
     popText.value = existing ? existing.note : '';
     if (existing) shotCheck.checked = !!existing.wantShot;
     $('.del').hidden = index == null;
     $('.copyshot').hidden = !(existing && existing.wantShot);
     pop.hidden = false;
-    positionPopover(el.getBoundingClientRect());
+    positionPopover(els[0].getBoundingClientRect());
     setTimeout(() => popText.focus(), 0);
   }
 
@@ -445,13 +531,15 @@
   function saveEditor() {
     if (!editing) return;
     const note = popText.value.trim();
-    const { el, index } = editing;
-    if (!note) { if (index == null) closeEditor(); else deleteItem(index); return; }
+    const { index } = editing;
+    const els = editing.els.filter((el) => el.isConnected);
+    if (!note || !els.length) { if (index == null) closeEditor(); else deleteItem(index); return; }
     const prev = index != null ? items[index] : null;
     const wantShot = shotCheck.checked;
-    const entry = { el, note, info: describe(el), wantShot };
-    // capture now so the picture shows the element as the person saw it
-    if (wantShot) entry.shot = prev && prev.wantShot && prev.el === el && prev.shot ? prev.shot : capture(el);
+    const entry = { els, note, infos: els.map(describe), wantShot };
+    const same = prev && prev.els.length === els.length && prev.els.every((el, k) => el === els[k]);
+    // capture now so the picture shows the elements as the person saw them
+    if (wantShot) entry.shot = same && prev.wantShot && prev.shot ? prev.shot : captureAll(els);
     if (index == null) items.push(entry); else items[index] = entry;
     closeEditor();
     renderPins();
@@ -519,7 +607,7 @@
     if (held === on) return;
     held = on;
     document.documentElement.style.cursor = picking() ? 'crosshair' : '';
-    if (on && !editing && pointer) {
+    if (on && pointer) {
       const el = document.elementFromPoint(pointer.x, pointer.y);
       if (el && el !== host && !host.contains(el)) { kbNav = false; navTrail = []; setHover(el); }
     }
@@ -534,7 +622,7 @@
     pointer = { x: e.clientX, y: e.clientY };
     // the key may have gone down or up while another window had focus
     if (enabled && held !== modDown(e)) setHeld(modDown(e));
-    if (!picking() || editing || own(e)) return;
+    if (!picking() || (editing && !held) || own(e)) return;
     const el = e.target;
     if (!(el instanceof Element) || el === hoverEl) return;
     // small mouse jitter inside the element picked with ↑/↓ keeps that pick
@@ -554,6 +642,11 @@
     if (!enabled || own(e) || !(active || modClick(e))) return;
     stop(e);
   };
+  // a press outside the settings panel closes it; added before `swallow`, which stops the event in annotate mode
+  window.addEventListener('pointerdown', (e) => {
+    if (setPanel.hidden || e.composedPath().some((n) => n === setPanel || n === grip)) return;
+    toggleSettings(false);
+  }, true);
   for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'dblclick', 'auxclick']) {
     window.addEventListener(type, swallow, true);
   }
@@ -563,6 +656,8 @@
     if (!(e.target instanceof Element)) return;
     const t = e.target;
     const pick = kbNav && hoverEl && (hoverEl.contains(t) || t.contains(hoverEl)) ? hoverEl : t;
+    // with the note box open, ⌘+click (or Shift+click in locked mode) picks more elements for the same note
+    if (editing && (modDown(e) || e.shiftKey)) { toggleEditTarget(pick); return; }
     openEditor(pick);
   }, true);
   window.addEventListener('contextmenu', (e) => {
@@ -625,12 +720,28 @@
     }
   }
 
+  /** One picture for several elements: each captured on its own, stacked with its number. */
+  async function captureAll(els) {
+    if (els.length === 1) return capture(els[0]);
+    const shots = (await Promise.all(els.map(capture)))
+      .map((dataUrl, k) => ({ dataUrl, label: String(k + 1) }))
+      .filter((s) => s.dataUrl);
+    if (!shots.length) return null;
+    if (shots.length === 1) return shots[0].dataUrl;
+    try {
+      return (await stackImages(shots)).toDataURL('image/png');
+    } catch (err) {
+      console.warn('[page-annotator] screenshot failed', err);
+      return null;
+    }
+  }
+
   /** Screenshot for an item, recapturing after a reload dropped the image. */
   function shotFor(item) {
     if (!item.wantShot) return null;
     if (!item.shot) {
-      const el = resolve(item);
-      item.shot = el ? capture(el) : Promise.resolve(null);
+      const els = resolveAll(item).filter(Boolean);
+      item.shot = els.length ? captureAll(els) : Promise.resolve(null);
     }
     return item.shot;
   }
@@ -717,6 +828,12 @@
 
   /** Stack screenshots vertically, each under a "#id note" label, into one PNG. */
   async function composeShots(entries) {
+    const canvas = await stackImages(entries.map((e) => ({ dataUrl: e.dataUrl, label: `#${e.id}  ${e.note.replace(/\s+/g, ' ')}` })));
+    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png'));
+  }
+
+  /** Draw images one under another, each under its label, on one canvas. */
+  async function stackImages(entries) {
     const imgs = await Promise.all(entries.map((e) => loadImage(e.dataUrl)));
     const PAD = 16, LABEL = 30, GAP = 14;
     const width = Math.min(1600, Math.max(480, ...imgs.map((im) => im.naturalWidth + PAD * 2)));
@@ -736,7 +853,7 @@
       ctx.fillStyle = '#7c5cff';
       ctx.font = '600 16px -apple-system, "PingFang SC", sans-serif';
       ctx.textBaseline = 'middle';
-      const label = `#${e.id}  ${e.note.replace(/\s+/g, ' ')}`;
+      const { label } = e;
       ctx.fillText(label.length > 80 ? `${label.slice(0, 80)}…` : label, PAD, y + LABEL / 2 - 2, width - PAD * 2);
       y += LABEL;
       ctx.drawImage(imgs[i], PAD, y, sizes[i].w, sizes[i].h);
@@ -744,7 +861,7 @@
       ctx.strokeRect(PAD - 0.5, y - 0.5, sizes[i].w + 1, sizes[i].h + 1);
       y += sizes[i].h + GAP;
     });
-    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png'));
+    return canvas;
   }
 
   /**
@@ -793,7 +910,10 @@
           lang: settings.lang,
           promptTemplate: settings.prompts[settings.lang] || undefined,
           target,
-          items: sent.map((it, i) => ({ note: it.note, ...it.info, screenshot: shots[i] })),
+          // one element: its fields sit next to the note; several: an `elements` array
+          items: sent.map((it, i) => ({
+            note: it.note, ...(it.infos.length === 1 ? it.infos[0] : { elements: it.infos }), screenshot: shots[i],
+          })),
         }),
       });
       const data = await res.json();
@@ -854,7 +974,7 @@
       num.textContent = String(i + 1);
       num.classList.toggle('lost', !el);
       num.title = el ? t('scrollTo') : t('lost');
-      loc.textContent = item.info.loc || item.info.selector || '';
+      loc.textContent = (item.infos.length > 1 ? `${t('nEls', item.infos.length)}  ` : '') + locText(item);
       loc.title = loc.textContent;
       ta.value = item.note;
       if (item.wantShot && item.shot) {
@@ -865,8 +985,8 @@
           row.querySelector('.body').appendChild(img);
         });
       }
-      row.addEventListener('mouseenter', () => { previewEl = resolve(item); row.classList.add('cur'); });
-      row.addEventListener('mouseleave', () => { previewEl = null; row.classList.remove('cur'); });
+      row.addEventListener('mouseenter', () => { previewEls = resolveAll(item).filter(Boolean); row.classList.add('cur'); });
+      row.addEventListener('mouseleave', () => { previewEls = []; row.classList.remove('cur'); });
       num.addEventListener('click', () => {
         const target = resolve(item);
         if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -883,7 +1003,7 @@
         if (e.key === 'Escape') ta.blur();
       });
       row.querySelector('.x').addEventListener('click', () => {
-        previewEl = null;
+        previewEls = [];
         items.splice(i, 1);
         closeEditor();
         renderPins();
@@ -897,7 +1017,7 @@
     list.hidden = !show;
     if (show) setPanel.hidden = true;
     count.classList.toggle('open', show);
-    if (!show) previewEl = null;
+    if (!show) previewEls = [];
     renderList();
   }
   count.addEventListener('click', () => toggleList());
@@ -981,6 +1101,26 @@
   const API_BASE = (cfg.endpoint || '/__annotator/submit').replace(/\/submit$/, '');
   const histBox = $('.hist'), histRows = $('.hist-rows'), setBody = $('.set-body');
   let histFilter = 'all', histItems = [];
+  /** ids picked in the history tab, for send again / delete */
+  const histSel = new Set();
+  const histAll = $('.hist-all'), histSelCount = $('.hist-selcount'), histResend = $('.hist-resend'), histDel = $('.hist-del');
+  const histVisible = () => histItems.filter((it) => histFilter === 'all'
+    || (histFilter === 'done' ? it.status === 'done' : it.status !== 'done'));
+
+  function renderHistSel() {
+    const visible = histVisible();
+    const picked = visible.filter((it) => histSel.has(it.id)).length;
+    histSelCount.textContent = picked ? t('hSelected', picked) : t('hAllSel');
+    histAll.checked = picked > 0 && picked === visible.length;
+    histAll.indeterminate = picked > 0 && picked < visible.length;
+    histAll.disabled = !visible.length;
+    histResend.disabled = histDel.disabled = picked === 0;
+    histRows.querySelectorAll('.hrow').forEach((row) => {
+      const on = histSel.has(Number(row.dataset.id));
+      row.classList.toggle('on', on);
+      row.querySelector('.hcheck').checked = on;
+    });
+  }
 
   function showTab(name) {
     root.querySelectorAll('.tabs .tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
@@ -1004,17 +1144,28 @@
   }
 
   function renderHistory() {
-    const rows = histItems.filter((it) => histFilter === 'all'
-      || (histFilter === 'done' ? it.status === 'done' : it.status !== 'done'));
+    const rows = histVisible();
+    // only what is on screen stays picked, so an action never touches hidden rows
+    const shown = new Set(rows.map((it) => it.id));
+    for (const id of histSel) if (!shown.has(id)) histSel.delete(id);
     histRows.innerHTML = '';
     if (!rows.length) {
       const d = document.createElement('div'); d.className = 'hist-empty'; d.textContent = t('hEmpty');
       histRows.appendChild(d);
+      renderHistSel();
       return;
     }
     const fmt = new Intl.DateTimeFormat(settings.lang === 'zh' ? 'zh-CN' : 'en', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     for (const it of rows) {
       const row = document.createElement('div'); row.className = 'hrow';
+      row.dataset.id = String(it.id);
+      const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'hcheck';
+      row.appendChild(check);
+      row.addEventListener('click', (e) => {
+        if (e.target.tagName === 'IMG') return;
+        if (histSel.has(it.id)) histSel.delete(it.id); else histSel.add(it.id);
+        renderHistSel();
+      });
       const main = document.createElement('div'); main.className = 'hmain';
       const head = document.createElement('div'); head.className = 'hnote';
       const id = document.createElement('span'); id.className = 'hid'; id.textContent = `#${it.id} `;
@@ -1023,7 +1174,8 @@
       const meta = document.createElement('div'); meta.className = 'hmeta';
       let page = (it.page && typeof it.page === 'object' ? it.page.url : it.page) || '';
       try { page = new URL(page).pathname; } catch { /* keep as is */ }
-      meta.textContent = [it.createdAt ? fmt.format(new Date(it.createdAt)) : '', page, it.loc || it.selector || ''].filter(Boolean).join(' · ');
+      const where = it.loc || it.selector || (Array.isArray(it.elements) ? it.elements.map((x) => x.loc || x.selector).join('  ') : '');
+      meta.textContent = [it.createdAt ? fmt.format(new Date(it.createdAt)) : '', page, where].filter(Boolean).join(' · ');
       meta.title = meta.textContent;
       main.append(head, meta);
       row.appendChild(main);
@@ -1035,7 +1187,65 @@
       }
       histRows.appendChild(row);
     }
+    renderHistSel();
   }
+
+  async function historyPost(action, body) {
+    const res = await fetch(`${API_BASE}/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  histAll.addEventListener('change', () => {
+    const visible = histVisible();
+    if (histAll.checked) visible.forEach((it) => histSel.add(it.id)); else histSel.clear();
+    renderHistSel();
+  });
+
+  histResend.addEventListener('click', () => {
+    const ids = histVisible().filter((it) => histSel.has(it.id)).map((it) => it.id);
+    if (!ids.length) return;
+    histResend.disabled = true;
+    let target;
+    const result = (async () => {
+      await refreshAgents();
+      target = currentTarget();
+      return historyPost('resend', { ids, target, lang: settings.lang, promptTemplate: settings.prompts[settings.lang] || undefined });
+    })();
+    // started inside the click so it still counts as a user gesture
+    const copied = !navigator.clipboard ? Promise.resolve(false)
+      : (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write
+        ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': result.then((d) => new Blob([d.prompt], { type: 'text/plain' })) })])
+        : result.then((d) => navigator.clipboard.writeText(d.prompt))
+      ).then(() => true, () => false);
+    Promise.all([result, copied]).then(([data, ok]) => {
+      const to = target ? ` ${t('sentTo', agentName(target))}` : '';
+      toast(t(ok ? 'hResent' : 'hResentNoCopy', data.ids.length, to));
+      histSel.clear();
+      loadHistory();
+    }).catch((err) => {
+      toast(t('hActFail', err.message), true);
+      renderHistSel();
+    });
+  });
+
+  histDel.addEventListener('click', async () => {
+    const ids = histVisible().filter((it) => histSel.has(it.id)).map((it) => it.id);
+    if (!ids.length || !confirm(t('hConfirmDel', ids.length))) return;
+    histDel.disabled = true;
+    try {
+      const data = await historyPost('delete', { ids });
+      toast(t('hDeleted', data.ids.length));
+      histSel.clear();
+      await loadHistory();
+    } catch (err) {
+      toast(t('hActFail', err.message), true);
+      renderHistSel();
+    }
+  });
 
   root.querySelectorAll('.tabs .tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   root.querySelectorAll('.hist-filter .hf').forEach((b) => b.addEventListener('click', () => {
@@ -1084,11 +1294,14 @@
 
   // ---------- draft persistence across reloads ----------
   function saveDraft() {
-    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items.map(({ note, info, wantShot }) => ({ note, info, wantShot })))); } catch { /* storage off */ }
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items.map(({ note, infos, wantShot }) => ({ note, infos, wantShot })))); } catch { /* storage off */ }
   }
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
-    items = saved.map((s) => ({ el: null, note: s.note, info: s.info, wantShot: !!s.wantShot }));
+    items = saved
+      .map((s) => ({ note: s.note, infos: s.infos || (s.info ? [s.info] : []), wantShot: !!s.wantShot }))
+      .filter((s) => s.infos.length)
+      .map((s) => ({ ...s, els: s.infos.map(() => null) }));
   } catch { items = []; }
 
   function setEnabled(on) {

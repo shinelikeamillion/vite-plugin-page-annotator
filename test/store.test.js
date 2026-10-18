@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  addSubmission, readQueue, clearQueue, toPrompt, toJson, writeOutbox, outboxFile,
+  addSubmission, readQueue, clearQueue, toPrompt, toJson, writeOutbox, outboxFile, resendItems, deleteItems, historyItems, queueFile,
   agentId, isForAgent, registerAgent, unregisterAgent, listAgents,
 } from '../src/store.js';
 
@@ -39,6 +39,25 @@ test('toJson keeps loc over selector and trims long text', () => {
   assert.equal(out.page, '/p');
   assert.deepEqual(out.annotations[0], { id: 1, note: 'a', loc: 'a.tsx:1:1', text: `${'x'.repeat(40)}…` });
   assert.deepEqual(out.annotations[1], { id: 2, note: 'b', selector: 'span' });
+});
+
+test('toJson lists the elements of a note that covers several', () => {
+  const out = toJson([
+    { id: 3, note: 'same gap', elements: [
+      { loc: 'a.tsx:1:1', selector: 'div', text: 'one' },
+      { selector: 'span', classes: 'x' },
+    ], page: { url: '/p' } },
+  ]);
+  assert.deepEqual(out.annotations[0], {
+    id: 3, note: 'same gap', elements: [{ loc: 'a.tsx:1:1', text: 'one' }, { selector: 'span' }],
+  });
+});
+
+test('addSubmission keeps the elements array', () => {
+  const root = tmp();
+  const [item] = addSubmission(root, { url: '/', items: [{ note: 'n', elements: [{ loc: 'a.tsx:1:1' }, { loc: 'b.tsx:2:2' }] }] });
+  assert.equal(readQueue(root).items[0].elements.length, 2);
+  assert.equal(item.elements[1].loc, 'b.tsx:2:2');
 });
 
 test('toPrompt is English by default, fills placeholders and appends missing json', () => {
@@ -91,4 +110,38 @@ test('listAgents dedupes, sorts by activity and drops stale or dead entries', ()
   registerAgent(root, { agent: 'claude' });
   unregisterAgent(root, 'claude');
   assert.deepEqual(listAgents(root), []);
+});
+
+test('listAgents keeps a fresh entry without a pid (the Claude Code inbox plugin)', () => {
+  const root = tmp();
+  const file = path.join(root, '.page-annotator', 'agents', 'claude-inbox-x.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ agent: 'claude', client: 'claude-code', lastSeen: Date.now(), lastActive: Date.now() }));
+  assert.deepEqual(listAgents(root).map((a) => a.agent), ['claude']);
+  assert.deepEqual(listAgents(root, Date.now() + 60_000), []);
+});
+
+test('resendItems puts items back as pending for the new target', () => {
+  const root = tmp();
+  const [a, b] = addSubmission(root, { url: '/', target: 'codex', items: [{ note: 'a' }, { note: 'b' }] });
+  const q = readQueue(root);
+  q.items.forEach((it) => { it.status = 'done'; });
+  fs.writeFileSync(queueFile(root), JSON.stringify(q));
+  const again = resendItems(root, [a.id], 'claude');
+  assert.deepEqual(again.map((it) => it.id), [a.id]);
+  const after = readQueue(root).items;
+  assert.equal(after.find((it) => it.id === a.id).status, 'pending');
+  assert.equal(after.find((it) => it.id === a.id).target, 'claude');
+  assert.equal(after.find((it) => it.id === b.id).status, 'done');
+  resendItems(root, [b.id]);
+  assert.equal(readQueue(root).items.find((it) => it.id === b.id).target, undefined);
+});
+
+test('deleteItems removes items and their screenshots', () => {
+  const root = tmp();
+  const added = addSubmission(root, { url: '/', items: [{ note: 'a', screenshot: PNG }, { note: 'b' }] });
+  assert.deepEqual(deleteItems(root, [added[0].id, 999]), [added[0].id]);
+  assert.ok(!fs.existsSync(added[0].screenshot));
+  assert.deepEqual(readQueue(root).items.map((it) => it.id), [added[1].id]);
+  assert.equal(historyItems(root)[0].id, added[1].id);
 });

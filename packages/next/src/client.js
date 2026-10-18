@@ -1,0 +1,1325 @@
+// Page annotator: click elements in the running page, leave change requests,
+// send them to the dev server queue (read by the page-annotator MCP server).
+(() => {
+  if (window.__pageAnnotator) return;
+  const cfg = window.__PAGE_ANNOTATOR__ || {};
+  const ENDPOINT = cfg.endpoint || '/__annotator/submit';
+  const STORAGE_KEY = 'page-annotator:draft';
+  const SHOT_PREF_KEY = 'page-annotator:screenshot';
+  const BAR_POS_KEY = 'page-annotator:bar-pos';
+  const SETTINGS_KEY = 'page-annotator:settings';
+  const TARGET_KEY = 'page-annotator:target';
+  const DEFAULT_PROMPTS = cfg.defaultPrompts || {};
+
+  // ---------- settings + UI strings ----------
+  const STRINGS = {
+    zh: {
+      notePh: '这里要怎么改？Enter 保存，Shift+Enter 换行，⌘+Enter 发送', shotOpt: '附带元素截图',
+      parent: '↑ 父', parentTip: '改选父元素（⌥↑，输入框为空时直接 ↑）', child: '↓ 子', childTip: '改选子元素（⌥↓，输入框为空时直接 ↓）',
+      del: '删除', copyShot: '复制截图', copyShotTip: '把这条的截图复制到剪贴板', cancel: '取消', save: '保存',
+      popHint: '⌘+点击 追加/移除元素 · ↑↓ 切换父/子元素 · 右键退出', nEls: (n) => `${n} 个元素`, dragPop: '拖动移动标注框',
+      grip: '拖动移动工具栏，双击复位，右键打开设置', toggle: '◎ 标注', toggleTip: '按住 ⌘ 悬停选择、点击标注；点这里或 Alt+A 锁定标注模式，右键退出',
+      count: (n) => `${n} 条`, countTip: '查看 / 修改全部标注', clear: '清空', clearTip: '清空全部', send: '发送', sendTip: '⌘+Enter',
+      welcome: (hold, keys) => `按住 ${hold} 点元素即可标注 · ${keys} 隐藏工具栏`,
+      confirmClear: (n) => `清空全部 ${n} 条标注？`, libFail: '截图库加载失败',
+      copiedBoth: '已复制 prompt 和截图：⌘V 粘贴文字，Ctrl+V 粘贴图片（Claude Code / Codex 终端）',
+      copiedText: '已复制 prompt 到剪贴板', copiedNone: '剪贴板不可用，可在 Claude / Codex 里说"处理页面标注"',
+      sent: (n, range, hint) => `已发送 ${n} 条（${range}）。${hint}`, sendFail: (m) => `发送失败：${m}`,
+      noShot: '这条没有截图', shotCopied: '截图已复制，可直接粘贴到对话框', copyFail: (m) => `复制失败：${m}`,
+      empty: '还没有标注。按住 ⌘ 点击页面元素来标注', scrollTo: '滚动到该元素', lost: '页面上找不到这个元素了',
+      settings: '设置', lang: '语言', promptLabel: '修复 prompt', promptHelp: '发送时使用。可用占位：{{count}} 条数、{{ids}} 编号、{{page}} 页面地址、{{json}} 标注 JSON（没写会自动附在最后）',
+      resetPrompt: '恢复默认', shotDefault: '新标注默认附带截图', close: '关闭', saved: '已保存',
+      tabSettings: '设置', tabHistory: '历史', hAll: '全部', hPending: '待处理', hDone: '已完成', hEmpty: '没有记录',
+      hLoadFail: (m) => `读取历史失败：${m}`, st_pending: '待处理', st_delivered: '已读取', st_done: '已完成',
+      hHelp: '已发送的标注，存在项目根目录 .page-annotator/（已完成的保留最近 200 条）', refresh: '刷新',
+      hAllSel: '全选', hSelected: (n) => `已选 ${n} 条`, hResend: '再次发送', hDelete: '删除',
+      hResent: (n, to) => `已再次发送 ${n} 条${to}，prompt 已复制`, hResentNoCopy: (n, to) => `已再次发送 ${n} 条${to}`,
+      hConfirmDel: (n) => `删除选中的 ${n} 条记录（连同截图）？`, hDeleted: (n) => `已删除 ${n} 条`, hActFail: (m) => `操作失败：${m}`,
+      targetLabel: '发送给', targetHelp: '自动：发给最近在用的工具（最近新开会话、或最近处理过标注的那个）。只有收到的工具能通过 MCP 读到这批标注',
+      sentTo: (name) => `→ ${name}`, auto: (name) => (name ? `自动（现在是 ${name}）` : '自动（暂无在线工具）'), offline: (name) => `${name}（不在线）`,
+    },
+    en: {
+      notePh: 'What should change here? Enter to save, Shift+Enter for a new line, ⌘+Enter to send', shotOpt: 'Attach element screenshot',
+      parent: '↑ Parent', parentTip: 'Pick the parent element (⌥↑, or ↑ while the box is empty)', child: '↓ Child', childTip: 'Pick a child element (⌥↓, or ↓ while the box is empty)',
+      del: 'Delete', copyShot: 'Copy screenshot', copyShotTip: 'Copy this annotation\'s screenshot', cancel: 'Cancel', save: 'Save',
+      popHint: '⌘+click adds / removes elements · ↑↓ parent / child · right-click exits', nEls: (n) => `${n} elements`, dragPop: 'Drag to move',
+      grip: 'Drag to move, double-click to reset, right-click for settings', toggle: '◎ Annotate', toggleTip: 'Hold ⌘ to hover and click to annotate; click here or Alt+A to lock the mode, right-click to exit',
+      count: (n) => `${n} item${n === 1 ? '' : 's'}`, countTip: 'View / edit all annotations', clear: 'Clear', clearTip: 'Clear all', send: 'Send', sendTip: '⌘+Enter',
+      welcome: (hold, keys) => `Hold ${hold} and click an element to annotate · ${keys} hides this toolbar`,
+      confirmClear: (n) => `Clear all ${n} annotations?`, libFail: 'Could not load the screenshot library',
+      copiedBoth: 'Prompt and screenshot copied: ⌘V pastes text, Ctrl+V pastes the image (Claude Code / Codex terminal)',
+      copiedText: 'Prompt copied to the clipboard', copiedNone: 'Clipboard unavailable; ask Claude / Codex to "handle the page annotations"',
+      sent: (n, range, hint) => `Sent ${n} (${range}). ${hint}`, sendFail: (m) => `Send failed: ${m}`,
+      noShot: 'This annotation has no screenshot', shotCopied: 'Screenshot copied; paste it into the chat', copyFail: (m) => `Copy failed: ${m}`,
+      empty: 'No annotations yet. Hold ⌘ and click an element to annotate it', scrollTo: 'Scroll to the element', lost: 'This element is no longer on the page',
+      settings: 'Settings', lang: 'Language', promptLabel: 'Fix prompt', promptHelp: 'Used when sending. Placeholders: {{count}} count, {{ids}} ids, {{page}} page URL, {{json}} annotation JSON (appended at the end if left out)',
+      resetPrompt: 'Reset to default', shotDefault: 'Attach screenshots to new annotations by default', close: 'Close', saved: 'Saved',
+      tabSettings: 'Settings', tabHistory: 'History', hAll: 'All', hPending: 'Open', hDone: 'Done', hEmpty: 'Nothing here',
+      hLoadFail: (m) => `Could not load history: ${m}`, st_pending: 'open', st_delivered: 'read', st_done: 'done',
+      hHelp: 'Sent annotations, kept in .page-annotator/ at the project root (the latest 200 done ones)', refresh: 'Refresh',
+      hAllSel: 'Select all', hSelected: (n) => `${n} selected`, hResend: 'Send again', hDelete: 'Delete',
+      hResent: (n, to) => `Sent ${n} again${to}; prompt copied`, hResentNoCopy: (n, to) => `Sent ${n} again${to}`,
+      hConfirmDel: (n) => `Delete the ${n} selected record${n === 1 ? '' : 's'} (and screenshots)?`, hDeleted: (n) => `Deleted ${n}`, hActFail: (m) => `Failed: ${m}`,
+      targetLabel: 'Send to', targetHelp: 'Auto: the tool used most recently (newest session, or the last one to handle annotations). Only the receiving tool can read the batch over MCP',
+      sentTo: (name) => `→ ${name}`, auto: (name) => (name ? `Auto (now ${name})` : 'Auto (no tool online)'), offline: (name) => `${name} (offline)`,
+    },
+  };
+  /** @type {{ lang: 'zh'|'en', prompts: Record<string, string> }} prompts: custom template per language */
+  // English unless the plugin was configured with lang: 'zh'; the viewer's own pick is kept
+  let settings = { lang: cfg.lang === 'zh' ? 'zh' : 'en', prompts: {} };
+  try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; } catch { /* storage off */ }
+  const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* storage off */ } };
+  const t = (key, ...args) => { const v = (STRINGS[settings.lang] || STRINGS.en)[key]; return typeof v === 'function' ? v(...args) : v; };
+  const promptFor = (lang) => settings.prompts[lang] || DEFAULT_PROMPTS[lang] || '';
+  const SCREENSHOT_LIB = cfg.screenshotLib || '/__annotator/vendor/modern-screenshot.js';
+
+  const host = document.createElement('page-annotator');
+  host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = `
+<style>
+  :host { all: initial; }
+  * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; }
+  .hl { position: fixed; border: 2px solid #7c5cff; background: rgba(124,92,255,.12); border-radius: 3px; pointer-events: none; transition: all .04s linear; }
+  .hl.picked { border-style: solid; background: rgba(124,92,255,.18); }
+  .hl-label { position: absolute; left: -2px; bottom: 100%; margin-bottom: 4px; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis;
+    background: #1d1b26; color: #e9e6ff; font-size: 11px; padding: 3px 6px; border-radius: 4px; font-family: ui-monospace, Menlo, monospace; }
+  .hl-label.below { bottom: auto; top: 100%; margin: 4px 0 0; }
+  .pin { position: fixed; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #7c5cff; color: #fff; font-size: 12px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.35); border: 2px solid #fff; }
+  .pin.lost { background: #8a8796; }
+  .pin:hover { transform: scale(1.12); }
+  .sel { position: fixed; border: 2px solid #7c5cff; background: rgba(124,92,255,.12); border-radius: 3px; pointer-events: none; }
+  .sel-n { position: absolute; left: -2px; top: -2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 3px 0 4px 0; background: #7c5cff; color: #fff;
+    font: 600 10px/16px ui-monospace, Menlo, monospace; text-align: center; }
+  .outline { position: fixed; border: 1px dashed rgba(124,92,255,.7); border-radius: 3px; pointer-events: none; }
+  .pop { position: fixed; width: 320px; background: #1d1b26; color: #e9e6ff; border-radius: 10px; padding: 10px; pointer-events: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); border: 1px solid #353146; }
+  .pop .meta { cursor: move; user-select: none; touch-action: none; font-size: 11px; color: #a39fb8; font-family: ui-monospace, Menlo, monospace; margin-bottom: 8px; word-break: break-all; }
+  .pop textarea { width: 100%; min-height: 72px; resize: vertical; background: #12111a; color: #fff; border: 1px solid #353146; border-radius: 6px; padding: 8px; font-size: 13px; outline: none; }
+  .pop textarea:focus { border-color: #7c5cff; }
+  .row { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .row .grow { flex: 1; }
+  .shot-opt { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #a39fb8; margin-top: 8px; cursor: pointer; user-select: none; }
+  .shot-opt input { accent-color: #7c5cff; margin: 0; }
+  .pin.shot::after { content: ''; position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; border-radius: 50%; background: #3ddc97; border: 1.5px solid #fff; }
+  button { font-size: 12px; border: 1px solid #353146; background: #2a2738; color: #e9e6ff; border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  button:hover { background: #353146; }
+  button.primary { background: #7c5cff; border-color: #7c5cff; color: #fff; }
+  button.primary:hover { background: #6a4bf0; }
+  button.danger { color: #ff8a8a; }
+  button:disabled { opacity: .45; cursor: default; }
+  .bar { position: fixed; right: 16px; bottom: 16px; display: flex; gap: 6px; align-items: center; pointer-events: auto; background: #1d1b26; padding: 6px; border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0,0,0,.4); border: 1px solid #353146; }
+  .bar .grip { cursor: grab; color: #8a8796; font-size: 14px; padding: 0 2px 0 4px; user-select: none; touch-action: none; line-height: 1; }
+  .bar .grip:hover { color: #e9e6ff; }
+  .bar.dragging, .bar.dragging .grip { cursor: grabbing; }
+  .bar .toggle.on { background: #7c5cff; border-color: #7c5cff; color: #fff; }
+  .bar .count { font-size: 12px; color: #a39fb8; padding: 0 4px; text-align: center; font-variant-numeric: tabular-nums; }
+  .bar > * { white-space: nowrap; flex: none; box-sizing: border-box; }
+  .bar .count { cursor: pointer; border-radius: 6px; padding: 5px 6px; }
+  .bar .count:hover, .bar .count.open { background: #2a2738; color: #e9e6ff; }
+  .list { position: fixed; right: 16px; bottom: 64px; width: 360px; max-height: min(60vh, 520px); overflow: auto; pointer-events: auto; background: #1d1b26; color: #e9e6ff;
+    border-radius: 10px; border: 1px solid #353146; box-shadow: 0 10px 30px rgba(0,0,0,.45); padding: 6px; }
+  .list .empty { font-size: 12px; color: #a39fb8; padding: 10px; text-align: center; }
+  .li { display: flex; gap: 8px; align-items: flex-start; padding: 6px; border-radius: 8px; }
+  .li:hover, .li.cur { background: #2a2738; }
+  .li .num { flex: none; width: 22px; height: 22px; border-radius: 50%; background: #7c5cff; color: #fff; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; cursor: pointer; margin-top: 2px; }
+  .li .num.lost { background: #8a8796; }
+  .li .body { flex: 1; min-width: 0; }
+  .li textarea { width: 100%; min-height: 26px; height: 26px; resize: none; overflow: hidden; background: transparent; color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; font-size: 13px; line-height: 18px; outline: none; }
+  .li textarea:hover { border-color: #353146; }
+  .li textarea:focus { border-color: #7c5cff; background: #12111a; }
+  .li .loc { font-size: 10.5px; color: #8a8796; font-family: ui-monospace, Menlo, monospace; padding: 0 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .li img { display: block; max-width: 100%; max-height: 90px; margin: 4px 7px 0; border-radius: 4px; border: 1px solid #353146; background: #fff; }
+  .li .x { flex: none; padding: 2px 7px; border: none; background: none; color: #8a8796; font-size: 14px; }
+  .li .x:hover { color: #ff8a8a; background: #353146; }
+  .hint { font-size: 10.5px; color: #8a8796; margin-top: 6px; }
+  .settings { position: fixed; width: 420px; max-width: calc(100vw - 8px); pointer-events: auto; background: #1d1b26; color: #e9e6ff; border-radius: 10px; border: 1px solid #353146;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45); padding: 12px; font-size: 12px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid #353146; }
+  .tabs .tab { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; color: #a39fb8; padding: 4px 8px 6px; }
+  .tabs .tab.on { color: #fff; border-bottom-color: #7c5cff; }
+  .hist-filter .hf.on { background: #2a2738; border-color: #7c5cff; color: #fff; }
+  .hist-rows { max-height: 320px; overflow: auto; margin: 8px 0 4px; }
+  .hrow { display: flex; gap: 8px; padding: 6px 2px; border-top: 1px solid #2a2738; }
+  .hrow:first-child { border-top: none; }
+  .hrow .hmain { flex: 1; min-width: 0; }
+  .hrow .hnote { white-space: pre-wrap; word-break: break-word; }
+  .hrow .hmeta { color: #8a8796; font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hrow .hid { color: #a39fb8; font-variant-numeric: tabular-nums; }
+  .hrow .st { font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-left: 4px; background: #2a2738; color: #a39fb8; }
+  .hrow .st.pending { background: #3a2f12; color: #f5c451; }
+  .hrow .st.done { background: #13311f; color: #5fd38d; }
+  .hrow img { width: 56px; height: 40px; object-fit: cover; border-radius: 4px; border: 1px solid #353146; cursor: zoom-in; flex: none; }
+  .hrow { cursor: pointer; border-radius: 6px; }
+  .hrow:hover { background: #24212f; }
+  .hrow.on { background: #2a2738; }
+  .hrow .hcheck { accent-color: #7c5cff; margin: 3px 0 0; flex: none; }
+  .hist-actions { margin-top: 6px; }
+  .hist-actions .shot-opt { margin-top: 0; }
+  .hist-empty { color: #8a8796; padding: 12px 0; text-align: center; }
+  .set-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .set-row select { background: #12111a; color: #fff; border: 1px solid #353146; border-radius: 6px; padding: 4px 6px; font-size: 12px; }
+  .set-label { color: #a39fb8; margin-bottom: 4px; }
+  .set-prompt { width: 100%; height: 200px; resize: vertical; background: #12111a; color: #fff; border: 1px solid #353146; border-radius: 6px; padding: 8px;
+    font: 12px/1.5 ui-monospace, Menlo, monospace; outline: none; }
+  .set-prompt:focus { border-color: #7c5cff; }
+  .set-help { color: #8a8796; font-size: 11px; margin-top: 4px; line-height: 1.5; }
+  .set-target-help { margin: -6px 0 12px; }
+  .set-row .set-target { max-width: 60%; }
+  .toast { position: fixed; right: 16px; bottom: 64px; background: #1d1b26; color: #e9e6ff; font-size: 12px; padding: 8px 12px; border-radius: 8px; border: 1px solid #353146; max-width: 360px; }
+  .toast.err { border-color: #ff6b6b; color: #ffb3b3; }
+  [hidden] { display: none !important; }
+</style>
+<div class="outlines"></div>
+<div class="sels"></div>
+<div class="hl" hidden><span class="hl-label"></span></div>
+<div class="pins"></div>
+<div class="pop" hidden>
+  <div class="meta"></div>
+  <textarea data-t-ph="notePh"></textarea>
+  <label class="shot-opt"><input type="checkbox" class="shot-check"> <span data-t="shotOpt"></span></label>
+  <div class="row">
+    <button class="parent" data-t="parent" data-t-title="parentTip"></button>
+    <button class="child" data-t="child" data-t-title="childTip"></button>
+    <button class="danger del" data-t="del"></button>
+    <button class="copyshot" data-t="copyShot" data-t-title="copyShotTip"></button>
+    <span class="grow"></span>
+    <button class="cancel" data-t="cancel"></button>
+    <button class="primary save" data-t="save"></button>
+  </div>
+  <div class="hint" data-t="popHint"></div>
+</div>
+<div class="list" hidden></div>
+<div class="settings" hidden>
+  <div class="tabs"><button class="tab on" data-tab="settings" data-t="tabSettings"></button><button class="tab" data-tab="history" data-t="tabHistory"></button></div>
+  <div class="hist" hidden>
+    <div class="row hist-filter">
+      <button class="hf on" data-f="all" data-t="hAll"></button><button class="hf" data-f="pending" data-t="hPending"></button><button class="hf" data-f="done" data-t="hDone"></button>
+      <span class="grow"></span><button class="hist-refresh" data-t="refresh"></button>
+    </div>
+    <div class="row hist-actions">
+      <label class="shot-opt"><input type="checkbox" class="hist-all"> <span class="hist-selcount"></span></label>
+      <span class="grow"></span><button class="danger hist-del" data-t="hDelete"></button><button class="primary hist-resend" data-t="hResend"></button>
+    </div>
+    <div class="hist-rows"></div>
+    <div class="set-help" data-t="hHelp"></div>
+  </div>
+  <div class="set-body">
+  <label class="set-row"><span data-t="lang"></span>
+    <select class="set-lang"><option value="en">English</option><option value="zh">中文</option></select>
+  </label>
+  <label class="set-row"><span data-t="targetLabel"></span><select class="set-target"></select></label>
+  <div class="set-help set-target-help" data-t="targetHelp"></div>
+  <div class="set-label" data-t="promptLabel"></div>
+  <textarea class="set-prompt" spellcheck="false"></textarea>
+  <div class="set-help" data-t="promptHelp"></div>
+  <label class="shot-opt"><input type="checkbox" class="set-shot"> <span data-t="shotDefault"></span></label>
+  </div>
+  <div class="row"><button class="set-reset" data-t="resetPrompt"></button><span class="grow"></span><button class="primary set-close" data-t="close"></button></div>
+</div>
+<div class="bar">
+  <span class="grip" data-t-title="grip">⠿</span>
+  <button class="toggle" data-t="toggle" data-t-title="toggleTip"></button>
+  <span class="count" data-t-title="countTip"></span>
+  <button class="clear" data-t="clear" data-t-title="clearTip"></button>
+  <button class="primary send" data-t="send" data-t-title="sendTip"></button>
+</div>
+<div class="toast" hidden></div>`;
+  document.documentElement.appendChild(host);
+
+  // shown on the first visit; ⌘⇧2 (Ctrl+Shift+2 elsewhere) hides it and the choice is remembered
+  const ENABLED_KEY = 'page-annotator:enabled';
+  let enabled = true, firstRun = false;
+  try {
+    const stored = localStorage.getItem(ENABLED_KEY);
+    firstRun = stored === null;
+    enabled = stored !== '0';
+  } catch { /* storage off */ }
+  host.style.display = enabled ? '' : 'none';
+
+  const $ = (s) => root.querySelector(s);
+  const hl = $('.hl'), hlLabel = $('.hl-label'), pins = $('.pins'), outlines = $('.outlines'), sels = $('.sels');
+  const pop = $('.pop'), popMeta = $('.pop .meta'), popText = $('.pop textarea');
+  const btnToggle = $('.toggle'), btnSend = $('.send'), btnClear = $('.clear'), count = $('.count'), targetSel = $('.set-target');
+  const toastEl = $('.toast'), list = $('.list');
+  const shotCheck = $('.shot-check');
+  try { shotCheck.checked = localStorage.getItem(SHOT_PREF_KEY) === '1'; } catch { /* storage off */ }
+  shotCheck.addEventListener('change', () => {
+    try { localStorage.setItem(SHOT_PREF_KEY, shotCheck.checked ? '1' : '0'); } catch { /* storage off */ }
+  });
+
+  // one note can cover several elements (⌘+click more while the note box is open); els[i] matches infos[i]
+  /** @type {{els: (Element|null)[], note: string, infos: any[], wantShot: boolean, shot?: Promise<string|null>}[]} */
+  let items = [];
+  let active = false;
+  let hoverEl = null;
+  /** editing: { els, cur, index } — els[cur] follows ↑/↓; index null for a new item */
+  let editing = null;
+  /** elements highlighted from the list panel */
+  let previewEls = [];
+  /** hover target came from ↑/↓, not the mouse */
+  let kbNav = false;
+  /** children we walked up from, so ↓ goes back the same way */
+  let navTrail = [];
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const modDown = (e) => (isMac ? e.metaKey : e.ctrlKey);
+  const modClick = (e) => modDown(e) && (e.button === 0 || e.button === undefined);
+  /** ⌘ (Ctrl elsewhere) is held: annotate while it is down */
+  let held = false;
+  const picking = () => active || held;
+  let pointer = null;
+
+  const own = (e) => e.composedPath().includes(host);
+
+  // ---------- element description ----------
+  function cssPath(el) {
+    const parts = [];
+    while (el && el.nodeType === 1 && el !== document.body && el !== document.documentElement) {
+      if (el.id) { parts.unshift(`#${CSS.escape(el.id)}`); break; }
+      const tid = el.getAttribute('data-testid');
+      if (tid) { parts.unshift(`[data-testid="${tid}"]`); break; }
+      const parent = el.parentElement;
+      if (!parent) break;
+      const same = [...parent.children].filter((c) => c.tagName === el.tagName);
+      const tag = el.tagName.toLowerCase();
+      parts.unshift(same.length > 1 ? `${tag}:nth-of-type(${same.indexOf(el) + 1})` : tag);
+      el = parent;
+    }
+    return parts.join(' > ');
+  }
+
+  function reactComponents(el) {
+    const key = Object.keys(el).find((k) => k.startsWith('__reactFiber$'));
+    let f = key ? el[key] : null;
+    const names = [];
+    while (f && names.length < 4) {
+      let t = f.type;
+      if (t && typeof t === 'object') t = t.type || t.render || null; // memo / forwardRef
+      if (typeof t === 'function') {
+        const n = t.displayName || t.name;
+        if (n && /^[A-Z]/.test(n) && names[0] !== n) names.unshift(n);
+      }
+      f = f.return;
+    }
+    return names.join(' › ');
+  }
+
+  const STYLE_KEYS = ['display', 'position', 'color', 'background-color', 'font-size', 'font-weight', 'padding', 'margin', 'border-radius', 'gap'];
+  function pickStyles(el) {
+    const cs = getComputedStyle(el);
+    const out = {};
+    for (const k of STYLE_KEYS) {
+      const v = cs.getPropertyValue(k);
+      if (v && v !== 'normal' && v !== 'none' && v !== '0px' && v !== 'rgba(0, 0, 0, 0)' && v !== 'static') out[k] = v;
+    }
+    return out;
+  }
+
+  function describe(el) {
+    const locEl = el.closest('[data-loc]');
+    const r = el.getBoundingClientRect();
+    const text = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
+    return {
+      tag: el.tagName.toLowerCase(),
+      loc: locEl ? locEl.getAttribute('data-loc') : null,
+      locIsAncestor: !!locEl && locEl !== el,
+      component: reactComponents(el),
+      selector: cssPath(el),
+      text: text.length > 120 ? `${text.slice(0, 120)}…` : text,
+      classes: (typeof el.className === 'string' ? el.className : el.getAttribute('class') || '').trim().slice(0, 240),
+      rect: { x: Math.round(r.left + scrollX), y: Math.round(r.top + scrollY), w: Math.round(r.width), h: Math.round(r.height) },
+      styles: pickStyles(el),
+    };
+  }
+
+  const shortLabel = (el) => {
+    const loc = el.closest('[data-loc]')?.getAttribute('data-loc');
+    const cls = typeof el.className === 'string' && el.className.trim() ? `.${el.className.trim().split(/\s+/)[0]}` : '';
+    const r = el.getBoundingClientRect();
+    return `${el.tagName.toLowerCase()}${cls}  ${Math.round(r.width)}×${Math.round(r.height)}${loc ? `  ${loc}` : ''}`;
+  };
+
+  // ---------- drawing ----------
+  function placeBox(box, r) {
+    box.style.left = `${r.left}px`; box.style.top = `${r.top}px`;
+    box.style.width = `${r.width}px`; box.style.height = `${r.height}px`;
+  }
+
+  /** The k-th element of an item, looked up again by selector after a reload or re-render. */
+  function resolveAt(item, k) {
+    const el = item.els[k];
+    if (el && el.isConnected) return el;
+    try { item.els[k] = document.querySelector(item.infos[k].selector); } catch { item.els[k] = null; }
+    return item.els[k];
+  }
+  const resolveAll = (item) => item.infos.map((_, k) => resolveAt(item, k));
+  const resolve = (item) => resolveAll(item).find(Boolean) || null;
+  const locText = (item) => item.infos.map((info) => info.loc || info.selector || '').join('  ');
+
+  function renderPins() {
+    pins.textContent = '';
+    outlines.textContent = '';
+    items.forEach((item, i) => {
+      const pin = document.createElement('div');
+      pin.className = 'pin';
+      pin.textContent = String(i + 1);
+      pin.title = item.note;
+      pin.classList.toggle('shot', !!item.wantShot);
+      pin.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const els = resolveAll(item).filter(Boolean);
+        if (els.length) openEditor(els, i);
+      });
+      pins.appendChild(pin);
+      for (const _ of item.infos) {
+        const o = document.createElement('div');
+        o.className = 'outline';
+        outlines.appendChild(o);
+      }
+    });
+    count.textContent = t('count', items.length);
+    btnSend.disabled = btnClear.disabled = items.length === 0;
+    renderList();
+    saveDraft();
+  }
+
+  function frame() {
+    if (!enabled) { requestAnimationFrame(frame); return; }
+    let n = 0;
+    items.forEach((item, i) => {
+      const pin = pins.children[i];
+      if (!pin) return;
+      const els = resolveAll(item);
+      const showOutline = picking() || !!editing || !list.hidden;
+      els.forEach((el) => {
+        const o = outlines.children[n++];
+        if (!o) return;
+        o.hidden = !el || !showOutline;
+        if (el) placeBox(o, el.getBoundingClientRect());
+      });
+      const first = els.find(Boolean);
+      pin.classList.toggle('lost', !first);
+      if (!first) return;
+      const r = first.getBoundingClientRect();
+      pin.style.left = `${Math.min(Math.max(r.right, 12), innerWidth - 12)}px`;
+      pin.style.top = `${Math.min(Math.max(r.top, 12), innerHeight - 12)}px`;
+    });
+    // the elements of the note being written (or hovered in the list), numbered when there are several
+    const selected = editing ? editing.els : previewEls;
+    drawSelection(selected);
+    // while the note box is open, holding ⌘ shows which element a click would add or remove
+    const adding = editing && held && hoverEl && hoverEl.isConnected ? hoverEl : null;
+    const target = adding || (editing ? editing.els[editing.cur] : previewEls.length ? null : picking() ? hoverEl : null);
+    if (target && target.isConnected) {
+      const r = target.getBoundingClientRect();
+      hl.hidden = false;
+      hl.classList.toggle('picked', !!editing && !adding);
+      placeBox(hl, r);
+      if (target !== labelFor) { labelFor = target; hlLabel.textContent = shortLabel(target); }
+      hlLabel.classList.toggle('below', r.top < 28);
+    } else {
+      hl.hidden = true;
+    }
+    if (editing && !editing.dragged) {
+      const anchor = editing.els.find((el) => el.isConnected);
+      if (anchor) positionPopover(anchor.getBoundingClientRect());
+    }
+    besideBar(list);
+    besideBar(setPanel);
+    besideBar(toastEl);
+    requestAnimationFrame(frame);
+  }
+
+  let labelFor = null;
+  function drawSelection(els) {
+    const live = els.filter((el) => el && el.isConnected);
+    while (sels.children.length < live.length) {
+      const box = document.createElement('div');
+      box.className = 'sel';
+      box.innerHTML = '<span class="sel-n"></span>';
+      sels.appendChild(box);
+    }
+    [...sels.children].forEach((box, k) => {
+      box.hidden = k >= live.length;
+      if (box.hidden) return;
+      placeBox(box, live[k].getBoundingClientRect());
+      const badge = box.firstChild;
+      badge.hidden = live.length < 2;
+      badge.textContent = String(k + 1);
+    });
+  }
+
+  function positionPopover(r) {
+    const w = 320, h = pop.offsetHeight || 160, gap = 8;
+    let top = r.bottom + gap;
+    if (top + h > innerHeight - 8) top = r.top - h - gap;
+    if (top < 8) top = Math.min(innerHeight - h - 8, Math.max(8, r.top + 8));
+    const left = Math.min(Math.max(8, r.left), innerWidth - w - 8);
+    pop.style.left = `${left}px`; pop.style.top = `${top}px`;
+  }
+
+  // ---------- editor ----------
+  // ---------- parent / child navigation ----------
+  function step(el, dir) {
+    if (dir === 'up') {
+      const p = el.parentElement;
+      if (!p || p === document.body || p === document.documentElement) return el;
+      navTrail.push(el);
+      return p;
+    }
+    const back = navTrail.pop();
+    if (back && back.parentElement === el) return back;
+    navTrail = [];
+    const kids = [...el.children].filter((c) => { const r = c.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+    return kids[0] || el;
+  }
+
+  function setHover(el) {
+    hoverEl = el;
+  }
+
+  function renderMeta() {
+    const { els, cur, index } = editing;
+    popMeta.textContent = (index != null ? `#${index + 1}  ` : '') + shortLabel(els[cur])
+      + (els.length > 1 ? `  · ${t('nEls', els.length)}` : '');
+  }
+
+  function moveEditTarget(dir) {
+    if (!editing) return;
+    const next = step(editing.els[editing.cur], dir);
+    // stepping onto an element that is already picked just moves the focus there
+    const at = editing.els.indexOf(next);
+    if (at > -1 && at !== editing.cur) editing.cur = at;
+    else editing.els[editing.cur] = next;
+    renderMeta();
+  }
+
+  /** ⌘+click while the note box is open: add the element to this note, or drop it if already there. */
+  function toggleEditTarget(el) {
+    if (!editing) return;
+    navTrail = [];
+    const at = editing.els.indexOf(el);
+    if (at === -1) editing.els.push(el);
+    else if (editing.els.length > 1) editing.els.splice(at, 1);
+    editing.cur = editing.els.length - 1;
+    renderMeta();
+    popText.focus();
+  }
+
+  function openEditor(target, index = null) {
+    navTrail = [];
+    const els = Array.isArray(target) ? target.slice() : [target];
+    editing = { els, cur: els.length - 1, index };
+    const existing = index != null ? items[index] : null;
+    renderMeta();
+    popText.value = existing ? existing.note : '';
+    if (existing) shotCheck.checked = !!existing.wantShot;
+    $('.del').hidden = index == null;
+    $('.copyshot').hidden = !(existing && existing.wantShot);
+    pop.hidden = false;
+    positionPopover(els[0].getBoundingClientRect());
+    setTimeout(() => popText.focus(), 0);
+  }
+
+  function closeEditor() {
+    editing = null;
+    pop.hidden = true;
+  }
+
+  function saveEditor() {
+    if (!editing) return;
+    const note = popText.value.trim();
+    const { index } = editing;
+    const els = editing.els.filter((el) => el.isConnected);
+    if (!note || !els.length) { if (index == null) closeEditor(); else deleteItem(index); return; }
+    const prev = index != null ? items[index] : null;
+    const wantShot = shotCheck.checked;
+    const entry = { els, note, infos: els.map(describe), wantShot };
+    const same = prev && prev.els.length === els.length && prev.els.every((el, k) => el === els[k]);
+    // capture now so the picture shows the elements as the person saw them
+    if (wantShot) entry.shot = same && prev.wantShot && prev.shot ? prev.shot : captureAll(els);
+    if (index == null) items.push(entry); else items[index] = entry;
+    closeEditor();
+    renderPins();
+  }
+
+  function deleteItem(index) {
+    items.splice(index, 1);
+    closeEditor();
+    renderPins();
+  }
+
+  $('.save').addEventListener('click', saveEditor);
+  $('.cancel').addEventListener('click', closeEditor);
+  $('.del').addEventListener('click', () => editing && editing.index != null && deleteItem(editing.index));
+  // drag the popover by its header; it then stays put until closed
+  popMeta.dataset.tTitle = 'dragPop';
+  popMeta.addEventListener('pointerdown', (e) => {
+    if (!editing || e.button !== 0) return;
+    e.preventDefault();
+    const start = { x: e.clientX, y: e.clientY, left: pop.offsetLeft, top: pop.offsetTop };
+    popMeta.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      if (!editing) return;
+      editing.dragged = true;
+      const left = Math.min(Math.max(0, start.left + ev.clientX - start.x), innerWidth - pop.offsetWidth);
+      const top = Math.min(Math.max(0, start.top + ev.clientY - start.y), innerHeight - 24);
+      pop.style.left = `${left}px`; pop.style.top = `${top}px`;
+    };
+    const up = () => {
+      popMeta.removeEventListener('pointermove', move);
+      popMeta.removeEventListener('pointerup', up);
+      popMeta.removeEventListener('pointercancel', up);
+      popText.focus();
+    };
+    popMeta.addEventListener('pointermove', move);
+    popMeta.addEventListener('pointerup', up);
+    popMeta.addEventListener('pointercancel', up);
+  });
+
+  $('.parent').addEventListener('click', () => { moveEditTarget('up'); popText.focus(); });
+  $('.child').addEventListener('click', () => { moveEditTarget('down'); popText.focus(); });
+  popText.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && (e.altKey || popText.value === '')) {
+      e.preventDefault();
+      moveEditTarget(e.key === 'ArrowUp' ? 'up' : 'down');
+      return;
+    }
+    if (e.key === 'Enter' && modDown(e) && !e.isComposing) { e.preventDefault(); saveEditor(); send(); return; }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); saveEditor(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeEditor(); }
+  });
+
+  // ---------- inspect mode ----------
+  function setActive(on) {
+    active = on;
+    btnToggle.classList.toggle('on', on);
+    document.documentElement.style.cursor = picking() ? 'crosshair' : '';
+    if (!on) { if (!held) hoverEl = null; kbNav = false; closeEditor(); }
+  }
+  btnToggle.addEventListener('click', () => setActive(!active));
+
+  // holding ⌘ is a temporary annotate mode: hover highlights, click picks, letting go ends it
+  function setHeld(on) {
+    if (held === on) return;
+    held = on;
+    document.documentElement.style.cursor = picking() ? 'crosshair' : '';
+    if (on && pointer) {
+      const el = document.elementFromPoint(pointer.x, pointer.y);
+      if (el && el !== host && !host.contains(el)) { kbNav = false; navTrail = []; setHover(el); }
+    }
+    if (!on && !active) { hoverEl = null; kbNav = false; }
+  }
+  const isModKey = (e) => e.key === (isMac ? 'Meta' : 'Control');
+  window.addEventListener('keyup', (e) => { if (isModKey(e) || !modDown(e)) setHeld(false); }, true);
+  window.addEventListener('blur', () => setHeld(false));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) setHeld(false); });
+
+  window.addEventListener('mousemove', (e) => {
+    pointer = { x: e.clientX, y: e.clientY };
+    // the key may have gone down or up while another window had focus
+    if (enabled && held !== modDown(e)) setHeld(modDown(e));
+    if (!picking() || (editing && !held) || own(e)) return;
+    const el = e.target;
+    if (!(el instanceof Element) || el === hoverEl) return;
+    // small mouse jitter inside the element picked with ↑/↓ keeps that pick
+    if (kbNav && hoverEl && (hoverEl.contains(el) || el.contains(hoverEl))) return;
+    kbNav = false;
+    navTrail = [];
+    setHover(el);
+  }, true);
+
+  const stop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  };
+  // in annotate mode the page gets no clicks; outside it, ⌘+click (Ctrl+click elsewhere) picks right away
+  const swallow = (e) => {
+    if (!enabled || own(e) || !(active || modClick(e))) return;
+    stop(e);
+  };
+  // a press outside the settings panel closes it; added before `swallow`, which stops the event in annotate mode
+  window.addEventListener('pointerdown', (e) => {
+    if (setPanel.hidden || e.composedPath().some((n) => n === setPanel || n === grip)) return;
+    toggleSettings(false);
+  }, true);
+  for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'dblclick', 'auxclick']) {
+    window.addEventListener(type, swallow, true);
+  }
+  window.addEventListener('click', (e) => {
+    if (!enabled || own(e) || !(active || modClick(e))) return;
+    stop(e);
+    if (!(e.target instanceof Element)) return;
+    const t = e.target;
+    const pick = kbNav && hoverEl && (hoverEl.contains(t) || t.contains(hoverEl)) ? hoverEl : t;
+    // with the note box open, ⌘+click (or Shift+click in locked mode) picks more elements for the same note
+    if (editing && (modDown(e) || e.shiftKey)) { toggleEditTarget(pick); return; }
+    openEditor(pick);
+  }, true);
+  window.addEventListener('contextmenu', (e) => {
+    if (!active || own(e)) return;
+    stop(e);
+    setActive(false);
+  }, true);
+
+  window.addEventListener('keydown', (e) => {
+    if ((isMac ? e.metaKey : e.ctrlKey) && e.shiftKey && !e.altKey && e.code === 'Digit2') { stop(e); setEnabled(!enabled); return; }
+    if (!enabled) return;
+    if (isModKey(e)) { if (!own(e)) setHeld(true); return; }
+    if (e.altKey && e.code === 'KeyA') { e.preventDefault(); setActive(!active); return; }
+    // ⌘+Enter sends what is queued (the note editor handles its own ⌘+Enter)
+    if (e.key === 'Enter' && modDown(e) && !e.isComposing && items.length && !own(e)) { stop(e); send(); return; }
+    if (!picking() || own(e)) return;
+    if (e.key === 'Escape') { e.preventDefault(); if (editing) closeEditor(); else { setActive(false); setHeld(false); } return; }
+    if (editing || !hoverEl) return;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      stop(e);
+      kbNav = true;
+      setHover(step(hoverEl, e.key === 'ArrowUp' ? 'up' : 'down'));
+    } else if (e.key === 'Enter') {
+      stop(e);
+      openEditor(hoverEl);
+    }
+  }, true);
+
+  // ---------- screenshots ----------
+  let libPromise;
+  function loadScreenshotLib() {
+    if (window.modernScreenshot) return Promise.resolve(window.modernScreenshot);
+    libPromise ||= new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = SCREENSHOT_LIB;
+      s.onload = () => resolve(window.modernScreenshot);
+      s.onerror = () => { libPromise = null; reject(new Error(t('libFail'))); };
+      document.head.appendChild(s);
+    });
+    return libPromise;
+  }
+
+  function backgroundOf(el) {
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      const bg = getComputedStyle(n).backgroundColor;
+      if (bg && bg !== 'transparent' && !/rgba\(.*,\s*0\)$/.test(bg)) return bg;
+    }
+    return '#ffffff';
+  }
+
+  async function capture(el) {
+    try {
+      const lib = await loadScreenshotLib();
+      const r = el.getBoundingClientRect();
+      const scale = Math.min(window.devicePixelRatio || 1, 2, 1600 / Math.max(r.width, r.height, 1));
+      return await lib.domToPng(el, { scale, backgroundColor: backgroundOf(el), timeout: 10000 });
+    } catch (err) {
+      console.warn('[page-annotator] screenshot failed', err);
+      return null;
+    }
+  }
+
+  /** One picture for several elements: each captured on its own, stacked with its number. */
+  async function captureAll(els) {
+    if (els.length === 1) return capture(els[0]);
+    const shots = (await Promise.all(els.map(capture)))
+      .map((dataUrl, k) => ({ dataUrl, label: String(k + 1) }))
+      .filter((s) => s.dataUrl);
+    if (!shots.length) return null;
+    if (shots.length === 1) return shots[0].dataUrl;
+    try {
+      return (await stackImages(shots)).toDataURL('image/png');
+    } catch (err) {
+      console.warn('[page-annotator] screenshot failed', err);
+      return null;
+    }
+  }
+
+  /** Screenshot for an item, recapturing after a reload dropped the image. */
+  function shotFor(item) {
+    if (!item.wantShot) return null;
+    if (!item.shot) {
+      const els = resolveAll(item).filter(Boolean);
+      item.shot = els.length ? captureAll(els) : Promise.resolve(null);
+    }
+    return item.shot;
+  }
+
+  // ---------- target: which online agent (Claude Code, Codex, ...) gets the next send ----------
+  // Auto (the default) sends to the agent used most recently: the server lists agents by
+  // their last session start / annotation tool call. A fixed pick lives in the settings panel.
+  const AGENTS_URL = ENDPOINT.replace(/\/submit$/, '/agents');
+  const AGENT_NAMES = { claude: 'Claude', codex: 'Codex', cursor: 'Cursor' };
+  const agentName = (id) => AGENT_NAMES[id] || id;
+  let agents = [];
+  let lastAgentsKey = '';
+  let pickedTarget = null;
+  try { pickedTarget = localStorage.getItem(TARGET_KEY); } catch { /* storage off */ }
+
+  function renderTargets() {
+    const ids = agents.map((a) => a.agent); // most recently used first
+    const key = ids.join(',');
+    if (key === lastAgentsKey) return;
+    lastAgentsKey = key;
+    const option = (value, label) => {
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      return o;
+    };
+    const shown = pickedTarget && !ids.includes(pickedTarget) ? [...ids, pickedTarget] : ids;
+    targetSel.replaceChildren(
+      option('', t('auto', ids[0] && agentName(ids[0]))),
+      ...shown.map((id) => option(id, ids.includes(id) ? agentName(id) : t('offline', agentName(id)))),
+    );
+    targetSel.value = pickedTarget || '';
+  }
+  targetSel.addEventListener('change', () => {
+    pickedTarget = targetSel.value || null;
+    try {
+      if (pickedTarget) localStorage.setItem(TARGET_KEY, pickedTarget);
+      else localStorage.removeItem(TARGET_KEY);
+    } catch { /* storage off */ }
+  });
+  // a pinned agent that is offline falls back to auto; no agent online: no target, whoever reads first gets it
+  const currentTarget = () => {
+    const ids = agents.map((a) => a.agent);
+    return ids.includes(pickedTarget) ? pickedTarget : ids[0];
+  };
+
+  async function refreshAgents() {
+    if (!enabled || document.hidden) return;
+    try {
+      const res = await fetch(AGENTS_URL, { cache: 'no-store' });
+      if (!res.ok) return;
+      agents = (await res.json()).agents || [];
+      renderTargets();
+    } catch { /* dev server restarting */ }
+  }
+  setInterval(refreshAgents, 5000);
+  addEventListener('focus', refreshAgents);
+  document.addEventListener('visibilitychange', refreshAgents);
+
+  // ---------- send ----------
+  let toastTimer;
+  function toast(msg, isErr = false, ms = isErr ? 6000 : 3500) {
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('err', isErr);
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => (toastEl.hidden = true), ms);
+  }
+
+  btnClear.addEventListener('click', () => {
+    if (!items.length || !confirm(t('confirmClear', items.length))) return;
+    items = [];
+    closeEditor();
+    renderPins();
+  });
+
+  // ---------- clipboard: JSON text + one labeled image of all screenshots ----------
+  const loadImage = (src) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+
+  /** Stack screenshots vertically, each under a "#id note" label, into one PNG. */
+  async function composeShots(entries) {
+    const canvas = await stackImages(entries.map((e) => ({ dataUrl: e.dataUrl, label: `#${e.id}  ${e.note.replace(/\s+/g, ' ')}` })));
+    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/png'));
+  }
+
+  /** Draw images one under another, each under its label, on one canvas. */
+  async function stackImages(entries) {
+    const imgs = await Promise.all(entries.map((e) => loadImage(e.dataUrl)));
+    const PAD = 16, LABEL = 30, GAP = 14;
+    const width = Math.min(1600, Math.max(480, ...imgs.map((im) => im.naturalWidth + PAD * 2)));
+    const sizes = imgs.map((im) => {
+      const k = Math.min(1, (width - PAD * 2) / im.naturalWidth);
+      return { w: Math.round(im.naturalWidth * k), h: Math.round(im.naturalHeight * k) };
+    });
+    const height = PAD + sizes.reduce((sum, sz) => sum + LABEL + sz.h + GAP, 0) - GAP + PAD;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#f4f3f8';
+    ctx.fillRect(0, 0, width, height);
+    let y = PAD;
+    entries.forEach((e, i) => {
+      ctx.fillStyle = '#7c5cff';
+      ctx.font = '600 16px -apple-system, "PingFang SC", sans-serif';
+      ctx.textBaseline = 'middle';
+      const { label } = e;
+      ctx.fillText(label.length > 80 ? `${label.slice(0, 80)}…` : label, PAD, y + LABEL / 2 - 2, width - PAD * 2);
+      y += LABEL;
+      ctx.drawImage(imgs[i], PAD, y, sizes[i].w, sizes[i].h);
+      ctx.strokeStyle = '#d6d2e6';
+      ctx.strokeRect(PAD - 0.5, y - 0.5, sizes[i].w + 1, sizes[i].h + 1);
+      y += sizes[i].h + GAP;
+    });
+    return canvas;
+  }
+
+  /**
+   * Must be called synchronously inside the click handler: the clipboard write
+   * starts while the click still counts as a user gesture, and the content
+   * arrives later through promises. Resolves to what ended up on the clipboard.
+   */
+  function copyResult(resultPromise, withImage) {
+    const textBlob = () => resultPromise.then((r) => new Blob([r.data.prompt], { type: 'text/plain' }));
+    const imageBlob = () => resultPromise.then((r) => {
+      const entries = r.shots
+        .map((dataUrl, i) => ({ dataUrl, id: r.data.ids[i], note: r.sent[i].note }))
+        .filter((e) => e.dataUrl);
+      if (!entries.length) throw new Error('no screenshots');
+      return composeShots(entries);
+    });
+    const textOnly = () => resultPromise
+      .then((r) => navigator.clipboard.writeText(r.data.prompt))
+      .then(() => 'text', () => 'none');
+    if (!navigator.clipboard) return Promise.resolve('none');
+    if (!withImage || typeof ClipboardItem === 'undefined' || !navigator.clipboard.write) return textOnly();
+    return navigator.clipboard
+      .write([new ClipboardItem({ 'text/plain': textBlob(), 'image/png': imageBlob() })])
+      .then(() => 'both', textOnly);
+  }
+
+  let sending = false;
+  btnSend.addEventListener('click', () => send());
+  function send() {
+    if (!items.length || sending) return;
+    sending = true;
+    btnSend.disabled = true;
+    const sent = items.slice();
+    let target;
+    const result = (async () => {
+      const shots = await Promise.all(sent.map(shotFor));
+      await refreshAgents(); // pick from who is online right now
+      target = currentTarget();
+      const res = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: location.href,
+          title: document.title,
+          viewport: { w: innerWidth, h: innerHeight },
+          lang: settings.lang,
+          promptTemplate: settings.prompts[settings.lang] || undefined,
+          target,
+          // one element: its fields sit next to the note; several: an `elements` array
+          items: sent.map((it, i) => ({
+            note: it.note, ...(it.infos.length === 1 ? it.infos[0] : { elements: it.infos }), screenshot: shots[i],
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return { data, shots, sent };
+    })();
+    const copied = copyResult(result, sent.some((it) => it.wantShot));
+
+    Promise.all([result, copied]).then(([{ data }, what]) => {
+      const range = `#${data.ids[0]}–#${data.ids[data.ids.length - 1]}`;
+      const hint = t({ both: 'copiedBoth', text: 'copiedText', none: 'copiedNone' }[what]);
+      toast(t('sent', data.ids.length, target ? `${range} ${t('sentTo', agentName(target))}` : range, hint));
+      toggleList(false);
+      items = items.filter((it) => !sent.includes(it));
+      renderPins();
+      setActive(false);
+    }).catch((err) => {
+      toast(t('sendFail', err.message), true);
+    }).finally(() => {
+      sending = false;
+      btnSend.disabled = items.length === 0;
+    });
+  }
+
+  // ---------- per-annotation copy ----------
+  async function copyOne(item) {
+    const dataUrl = await shotFor(item);
+    if (!dataUrl) throw new Error(t('noShot'));
+    return composeShots([{ dataUrl, id: items.indexOf(item) + 1, note: item.note }]);
+  }
+
+  $('.copyshot').addEventListener('click', () => {
+    const item = editing && editing.index != null ? items[editing.index] : null;
+    if (!item) return;
+    // started inside the click so it still counts as a user gesture
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': copyOne(item) })])
+      .then(() => toast(t('shotCopied')))
+      .catch((err) => toast(t('copyFail', err.message), true));
+  });
+
+  // ---------- list panel: preview, edit, delete ----------
+  const autoGrow = (ta) => { ta.style.height = 'auto'; ta.style.height = `${ta.scrollHeight + 2}px`; };
+
+  function renderList() {
+    if (list.hidden) return;
+    list.textContent = '';
+    if (!items.length) {
+      list.innerHTML = `<div class="empty">${t('empty')}</div>`;
+      return;
+    }
+    items.forEach((item, i) => {
+      const row = document.createElement('div');
+      row.className = 'li';
+      const el = resolve(item);
+      row.innerHTML = '<div class="num"></div><div class="body"><textarea rows="1"></textarea><div class="loc"></div></div><button class="x">✕</button>';
+      row.querySelector('.x').title = t('del');
+      const num = row.querySelector('.num'), ta = row.querySelector('textarea'), loc = row.querySelector('.loc');
+      num.textContent = String(i + 1);
+      num.classList.toggle('lost', !el);
+      num.title = el ? t('scrollTo') : t('lost');
+      loc.textContent = (item.infos.length > 1 ? `${t('nEls', item.infos.length)}  ` : '') + locText(item);
+      loc.title = loc.textContent;
+      ta.value = item.note;
+      if (item.wantShot && item.shot) {
+        item.shot.then((src) => {
+          if (!src) return;
+          const img = document.createElement('img');
+          img.src = src;
+          row.querySelector('.body').appendChild(img);
+        });
+      }
+      row.addEventListener('mouseenter', () => { previewEls = resolveAll(item).filter(Boolean); row.classList.add('cur'); });
+      row.addEventListener('mouseleave', () => { previewEls = []; row.classList.remove('cur'); });
+      num.addEventListener('click', () => {
+        const target = resolve(item);
+        if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
+      ta.addEventListener('input', () => {
+        autoGrow(ta);
+        if (ta.value.trim()) { item.note = ta.value.trim(); pins.children[i] && (pins.children[i].title = item.note); saveDraft(); }
+      });
+      ta.addEventListener('blur', () => { ta.value = item.note; autoGrow(ta); });
+      ta.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter' && modDown(e) && !e.isComposing) { e.preventDefault(); ta.blur(); send(); return; }
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); ta.blur(); }
+        if (e.key === 'Escape') ta.blur();
+      });
+      row.querySelector('.x').addEventListener('click', () => {
+        previewEls = [];
+        items.splice(i, 1);
+        closeEditor();
+        renderPins();
+      });
+      list.appendChild(row);
+      requestAnimationFrame(() => autoGrow(ta));
+    });
+  }
+
+  function toggleList(show = list.hidden) {
+    list.hidden = !show;
+    if (show) setPanel.hidden = true;
+    count.classList.toggle('open', show);
+    if (!show) previewEls = [];
+    renderList();
+  }
+  count.addEventListener('click', () => toggleList());
+
+  // ---------- toolbar: draggable, the list and toast follow it ----------
+  const bar = $('.bar'), grip = $('.grip');
+  let barPos = null; // { left, top } once moved; null = default bottom-right corner
+  try { barPos = JSON.parse(localStorage.getItem(BAR_POS_KEY) || 'null'); } catch { barPos = null; }
+
+  function placeBar() {
+    if (!barPos) { bar.style.left = bar.style.top = ''; bar.style.right = bar.style.bottom = '16px'; return; }
+    const left = Math.min(Math.max(4, barPos.left), innerWidth - bar.offsetWidth - 4);
+    const top = Math.min(Math.max(4, barPos.top), innerHeight - bar.offsetHeight - 4);
+    bar.style.right = bar.style.bottom = 'auto';
+    bar.style.left = `${left}px`; bar.style.top = `${top}px`;
+  }
+
+  /** Put a floating panel above the toolbar (below when there is no room), right edges aligned. */
+  function besideBar(panel) {
+    if (panel.hidden) return;
+    const b = bar.getBoundingClientRect(), h = panel.offsetHeight, w = panel.offsetWidth, gap = 8;
+    const top = b.top - gap - h >= 4 ? b.top - gap - h : Math.min(b.bottom + gap, innerHeight - h - 4);
+    panel.style.right = panel.style.bottom = 'auto';
+    panel.style.left = `${Math.min(Math.max(4, b.right - w), innerWidth - w - 4)}px`;
+    panel.style.top = `${Math.max(4, top)}px`;
+  }
+
+  grip.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const r = bar.getBoundingClientRect();
+    const dx = e.clientX - r.left, dy = e.clientY - r.top;
+    grip.setPointerCapture(e.pointerId);
+    bar.classList.add('dragging');
+    const move = (ev) => { barPos = { left: ev.clientX - dx, top: ev.clientY - dy }; placeBar(); };
+    const up = () => {
+      bar.classList.remove('dragging');
+      grip.removeEventListener('pointermove', move);
+      grip.removeEventListener('pointerup', up);
+      grip.removeEventListener('pointercancel', up);
+      try { localStorage.setItem(BAR_POS_KEY, JSON.stringify(barPos)); } catch { /* storage off */ }
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+  });
+  grip.addEventListener('dblclick', () => {
+    barPos = null;
+    try { localStorage.removeItem(BAR_POS_KEY); } catch { /* storage off */ }
+    placeBar();
+  });
+  addEventListener('resize', placeBar);
+
+  // ---------- settings panel (right-click the ⠿ grip) ----------
+  const setPanel = $('.settings'), setLang = $('.set-lang'), setPrompt = $('.set-prompt'), setShot = $('.set-shot');
+
+  function applyLang() {
+    root.querySelectorAll('[data-t]').forEach((n) => { n.textContent = t(n.dataset.t); });
+    root.querySelectorAll('[data-t-title]').forEach((n) => { n.title = t(n.dataset.tTitle); });
+    root.querySelectorAll('[data-t-ph]').forEach((n) => { n.placeholder = t(n.dataset.tPh); });
+    fixBarWidths();
+    lastAgentsKey = '';
+    renderTargets();
+    count.textContent = t('count', items.length);
+    renderList();
+    if (!histBox.hidden) renderHistory();
+  }
+
+  // lock the toolbar's width per language, so a changing count never makes it grow or shrink
+  function fixBarWidths() {
+    for (const n of [btnToggle, count]) n.style.width = '';
+    count.textContent = t('count', 999);
+    const cw = count.getBoundingClientRect().width;
+    const tw = btnToggle.getBoundingClientRect().width;
+    if (cw) count.style.width = `${Math.ceil(cw)}px`;
+    if (tw) btnToggle.style.width = `${Math.ceil(tw)}px`;
+    count.textContent = t('count', items.length);
+  }
+
+  // ---------- history tab ----------
+  const API_BASE = (cfg.endpoint || '/__annotator/submit').replace(/\/submit$/, '');
+  const histBox = $('.hist'), histRows = $('.hist-rows'), setBody = $('.set-body');
+  let histFilter = 'all', histItems = [];
+  /** ids picked in the history tab, for send again / delete */
+  const histSel = new Set();
+  const histAll = $('.hist-all'), histSelCount = $('.hist-selcount'), histResend = $('.hist-resend'), histDel = $('.hist-del');
+  const histVisible = () => histItems.filter((it) => histFilter === 'all'
+    || (histFilter === 'done' ? it.status === 'done' : it.status !== 'done'));
+
+  function renderHistSel() {
+    const visible = histVisible();
+    const picked = visible.filter((it) => histSel.has(it.id)).length;
+    histSelCount.textContent = picked ? t('hSelected', picked) : t('hAllSel');
+    histAll.checked = picked > 0 && picked === visible.length;
+    histAll.indeterminate = picked > 0 && picked < visible.length;
+    histAll.disabled = !visible.length;
+    histResend.disabled = histDel.disabled = picked === 0;
+    histRows.querySelectorAll('.hrow').forEach((row) => {
+      const on = histSel.has(Number(row.dataset.id));
+      row.classList.toggle('on', on);
+      row.querySelector('.hcheck').checked = on;
+    });
+  }
+
+  function showTab(name) {
+    root.querySelectorAll('.tabs .tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
+    histBox.hidden = name !== 'history';
+    setBody.hidden = name === 'history';
+    $('.set-reset').hidden = name === 'history';
+    if (name === 'history') loadHistory();
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch(`${API_BASE}/history`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      histItems = (await res.json()).items || [];
+      renderHistory();
+    } catch (err) {
+      histRows.innerHTML = '';
+      const d = document.createElement('div'); d.className = 'hist-empty'; d.textContent = t('hLoadFail', err.message);
+      histRows.appendChild(d);
+    }
+  }
+
+  function renderHistory() {
+    const rows = histVisible();
+    // only what is on screen stays picked, so an action never touches hidden rows
+    const shown = new Set(rows.map((it) => it.id));
+    for (const id of histSel) if (!shown.has(id)) histSel.delete(id);
+    histRows.innerHTML = '';
+    if (!rows.length) {
+      const d = document.createElement('div'); d.className = 'hist-empty'; d.textContent = t('hEmpty');
+      histRows.appendChild(d);
+      renderHistSel();
+      return;
+    }
+    const fmt = new Intl.DateTimeFormat(settings.lang === 'zh' ? 'zh-CN' : 'en', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    for (const it of rows) {
+      const row = document.createElement('div'); row.className = 'hrow';
+      row.dataset.id = String(it.id);
+      const check = document.createElement('input'); check.type = 'checkbox'; check.className = 'hcheck';
+      row.appendChild(check);
+      row.addEventListener('click', (e) => {
+        if (e.target.tagName === 'IMG') return;
+        if (histSel.has(it.id)) histSel.delete(it.id); else histSel.add(it.id);
+        renderHistSel();
+      });
+      const main = document.createElement('div'); main.className = 'hmain';
+      const head = document.createElement('div'); head.className = 'hnote';
+      const id = document.createElement('span'); id.className = 'hid'; id.textContent = `#${it.id} `;
+      const st = document.createElement('span'); st.className = `st ${it.status}`; st.textContent = t(`st_${it.status}`) || it.status;
+      head.append(id, document.createTextNode(it.note || ''), st);
+      const meta = document.createElement('div'); meta.className = 'hmeta';
+      let page = (it.page && typeof it.page === 'object' ? it.page.url : it.page) || '';
+      try { page = new URL(page).pathname; } catch { /* keep as is */ }
+      const where = it.loc || it.selector || (Array.isArray(it.elements) ? it.elements.map((x) => x.loc || x.selector).join('  ') : '');
+      meta.textContent = [it.createdAt ? fmt.format(new Date(it.createdAt)) : '', page, where].filter(Boolean).join(' · ');
+      meta.title = meta.textContent;
+      main.append(head, meta);
+      row.appendChild(main);
+      if (it.hasShot) {
+        const img = document.createElement('img');
+        img.src = `${API_BASE}/shot/${it.id}`;
+        img.addEventListener('click', () => window.open(img.src, '_blank'));
+        row.appendChild(img);
+      }
+      histRows.appendChild(row);
+    }
+    renderHistSel();
+  }
+
+  async function historyPost(action, body) {
+    const res = await fetch(`${API_BASE}/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  }
+
+  histAll.addEventListener('change', () => {
+    const visible = histVisible();
+    if (histAll.checked) visible.forEach((it) => histSel.add(it.id)); else histSel.clear();
+    renderHistSel();
+  });
+
+  histResend.addEventListener('click', () => {
+    const ids = histVisible().filter((it) => histSel.has(it.id)).map((it) => it.id);
+    if (!ids.length) return;
+    histResend.disabled = true;
+    let target;
+    const result = (async () => {
+      await refreshAgents();
+      target = currentTarget();
+      return historyPost('resend', { ids, target, lang: settings.lang, promptTemplate: settings.prompts[settings.lang] || undefined });
+    })();
+    // started inside the click so it still counts as a user gesture
+    const copied = !navigator.clipboard ? Promise.resolve(false)
+      : (typeof ClipboardItem !== 'undefined' && navigator.clipboard.write
+        ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': result.then((d) => new Blob([d.prompt], { type: 'text/plain' })) })])
+        : result.then((d) => navigator.clipboard.writeText(d.prompt))
+      ).then(() => true, () => false);
+    Promise.all([result, copied]).then(([data, ok]) => {
+      const to = target ? ` ${t('sentTo', agentName(target))}` : '';
+      toast(t(ok ? 'hResent' : 'hResentNoCopy', data.ids.length, to));
+      histSel.clear();
+      loadHistory();
+    }).catch((err) => {
+      toast(t('hActFail', err.message), true);
+      renderHistSel();
+    });
+  });
+
+  histDel.addEventListener('click', async () => {
+    const ids = histVisible().filter((it) => histSel.has(it.id)).map((it) => it.id);
+    if (!ids.length || !confirm(t('hConfirmDel', ids.length))) return;
+    histDel.disabled = true;
+    try {
+      const data = await historyPost('delete', { ids });
+      toast(t('hDeleted', data.ids.length));
+      histSel.clear();
+      await loadHistory();
+    } catch (err) {
+      toast(t('hActFail', err.message), true);
+      renderHistSel();
+    }
+  });
+
+  root.querySelectorAll('.tabs .tab').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+  root.querySelectorAll('.hist-filter .hf').forEach((b) => b.addEventListener('click', () => {
+    histFilter = b.dataset.f;
+    root.querySelectorAll('.hist-filter .hf').forEach((x) => x.classList.toggle('on', x === b));
+    renderHistory();
+  }));
+  $('.hist-refresh').addEventListener('click', loadHistory);
+
+  function fillSettings() {
+    setLang.value = settings.lang;
+    setPrompt.value = promptFor(settings.lang);
+    setShot.checked = shotCheck.checked;
+  }
+
+  function toggleSettings(show = setPanel.hidden) {
+    setPanel.hidden = !show;
+    if (show) { toggleList(false); fillSettings(); if (!histBox.hidden) loadHistory(); }
+  }
+
+  grip.addEventListener('contextmenu', (e) => { e.preventDefault(); toggleSettings(); });
+  setLang.addEventListener('change', () => {
+    settings.lang = setLang.value === 'zh' ? 'zh' : 'en';
+    saveSettings();
+    applyLang();
+    fillSettings();
+  });
+  setPrompt.addEventListener('input', () => {
+    const v = setPrompt.value;
+    // only a template that differs from the default is kept, so default updates still reach it
+    if (v.trim() && v !== DEFAULT_PROMPTS[settings.lang]) settings.prompts[settings.lang] = v;
+    else delete settings.prompts[settings.lang];
+    saveSettings();
+  });
+  setPrompt.addEventListener('keydown', (e) => e.stopPropagation());
+  $('.set-reset').addEventListener('click', () => {
+    delete settings.prompts[settings.lang];
+    saveSettings();
+    fillSettings();
+  });
+  setShot.addEventListener('change', () => {
+    shotCheck.checked = setShot.checked;
+    try { localStorage.setItem(SHOT_PREF_KEY, setShot.checked ? '1' : '0'); } catch { /* storage off */ }
+  });
+  $('.set-close').addEventListener('click', () => toggleSettings(false));
+
+  // ---------- draft persistence across reloads ----------
+  function saveDraft() {
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items.map(({ note, infos, wantShot }) => ({ note, infos, wantShot })))); } catch { /* storage off */ }
+  }
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+    items = saved
+      .map((s) => ({ note: s.note, infos: s.infos || (s.info ? [s.info] : []), wantShot: !!s.wantShot }))
+      .filter((s) => s.infos.length)
+      .map((s) => ({ ...s, els: s.infos.map(() => null) }));
+  } catch { items = []; }
+
+  function setEnabled(on) {
+    enabled = on;
+    try { localStorage.setItem(ENABLED_KEY, on ? '1' : '0'); } catch { /* storage off */ }
+    if (!on) { setActive(false); toggleList(false); setPanel.hidden = true; }
+    host.style.display = on ? '' : 'none';
+    if (on) { fixBarWidths(); placeBar(); refreshAgents(); }
+  }
+
+  renderPins();
+  applyLang();
+  placeBar();
+  refreshAgents();
+  if (firstRun) {
+    try { localStorage.setItem(ENABLED_KEY, '1'); } catch { /* storage off */ }
+    toast(t('welcome', isMac ? '⌘' : 'Ctrl', isMac ? '⌘⇧2' : 'Ctrl+Shift+2'), false, 8000);
+  }
+  requestAnimationFrame(frame);
+  window.__pageAnnotator = { show: () => setEnabled(true), hide: () => setEnabled(false), open: () => { setEnabled(true); setActive(true); }, close: () => setActive(false), get items() { return items; } };
+})();

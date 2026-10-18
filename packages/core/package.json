@@ -1,0 +1,25 @@
+{
+  "name": "@page-annotator/core",
+  "version": "0.1.0",
+  "description": "Shared core for page-annotator (in-page UI, queue store, and MCP server)",
+  "type": "module",
+  "license": "MIT",
+  "author": "sean liu",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/store.js"
+    },
+    "./store": {
+      "types": "./src/store.d.ts",
+      "default": "./src/store.js"
+    },
+    "./client.js": "./src/client.js"
+  },
+  "bin": {
+    "page-annotator-mcp": "./src/mcp-server.js"
+  },
+  "dependencies": {
+    "modern-screenshot": "^4.7.0"
+  }
+}

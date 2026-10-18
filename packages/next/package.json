@@ -1,0 +1,51 @@
+{
+  "name": "next-page-annotator",
+  "version": "0.1.0",
+  "description": "Click elements on your live Next.js dev page, write what should change, and hand it to Claude Code or Codex with screenshots and location context.",
+  "type": "module",
+  "license": "MIT",
+  "author": "sean liu",
+  "keywords": [
+    "nextjs",
+    "next",
+    "page-annotator",
+    "annotate",
+    "claude-code",
+    "codex",
+    "mcp",
+    "devtools",
+    "react",
+    "ai-coding"
+  ],
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./server": {
+      "types": "./index.d.ts",
+      "default": "./src/server.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./index.d.ts",
+  "bin": {
+    "page-annotator-mcp": "./src/mcp-server.js"
+  },
+  "files": [
+    "index.d.ts",
+    "src",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "next": ">=13.0.0",
+    "react": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": { "optional": true },
+    "react": { "optional": true }
+  },
+  "dependencies": {
+    "modern-screenshot": "^4.7.0"
+  }
+}

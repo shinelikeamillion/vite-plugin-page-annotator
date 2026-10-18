@@ -5,7 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { parseAst, version as viteVersion } from 'vite';
-import { DEFAULT_PROMPTS, addSubmission, listAgents, readQueue, toPrompt, writeOutbox } from './store.js';
+import {
+  DEFAULT_PROMPTS, addSubmission, deleteItems, historyItems, listAgents, readQueue, resendItems, toPrompt, writeOutbox,
+} from './store.js';
 
 const CLIENT_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'client.js');
 const BASE = '/__annotator';
@@ -140,11 +142,7 @@ export function pageAnnotator(options = {}) {
             return send(200, 'text/javascript; charset=utf-8', fs.readFileSync(SCREENSHOT_LIB, 'utf8'));
           }
           if (req.method === 'GET' && req.url === `${BASE}/history`) {
-            const items = readQueue(root).items.slice(-300).reverse().map((it) => ({
-              id: it.id, status: it.status, note: it.note, loc: it.loc, selector: it.selector, page: it.page, createdAt: it.createdAt, target: it.target,
-              hasShot: typeof it.screenshot === 'string' && fs.existsSync(it.screenshot),
-            }));
-            return send(200, 'application/json', JSON.stringify({ items }));
+            return send(200, 'application/json', JSON.stringify({ items: historyItems(root) }));
           }
           if (req.method === 'GET' && req.url === `${BASE}/agents`) {
             return send(200, 'application/json', JSON.stringify({ agents: listAgents(root) }));
@@ -157,6 +155,19 @@ export function pageAnnotator(options = {}) {
             res.setHeader('Content-Type', it.screenshot.endsWith('.jpg') ? 'image/jpeg' : 'image/png');
             res.setHeader('Cache-Control', 'no-store');
             return res.end(fs.readFileSync(it.screenshot));
+          }
+          if (req.method === 'POST' && (req.url === `${BASE}/resend` || req.url === `${BASE}/delete`)) {
+            const parsed = req.body;
+            const payload = parsed && typeof parsed === 'object' ? parsed : JSON.parse(await readBody(req, 1_000_000));
+            if (req.url === `${BASE}/delete`) {
+              return send(200, 'application/json', JSON.stringify({ ok: true, ids: deleteItems(root, payload.ids) }));
+            }
+            const items = resendItems(root, payload.ids, payload.target);
+            if (!items.length) return send(400, 'application/json', JSON.stringify({ ok: false, error: 'no such annotations' }));
+            const prompt = toPrompt(items, { lang: payload.lang, template: payload.promptTemplate });
+            writeOutbox(root, items, prompt);
+            server.config.logger.info(`[annotator] resent ${items.map((it) => `#${it.id}`).join(' ')}${items[0].target ? ` for ${items[0].target}` : ''}`, { timestamp: true });
+            return send(200, 'application/json', JSON.stringify({ ok: true, ids: items.map((it) => it.id), prompt }));
           }
           if (req.method === 'POST' && req.url === `${BASE}/submit`) {
             // an outer Express app may already have parsed the body (express.json())

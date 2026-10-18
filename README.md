@@ -178,7 +178,7 @@ Add `.page-annotator/` to your `.gitignore`:
 1. Start your dev server (`npm run dev`) and open your app in the browser.
 2. The floating toolbar appears in the bottom-right corner on your first visit, and the terminal prints a reminder under Vite's URLs. Press **⌘⇧2** (`Ctrl+Shift+2` on Windows/Linux) to hide or show it; the choice is remembered across reloads.
 3. **Hold ⌘** (`Ctrl` on Windows/Linux): while it is down, hovering highlights elements with their exact `file:line:column` badge and a **click** picks one. Let go and the page works normally again. To stay in annotation mode without holding the key, click **◎ Annotate** or press **Alt+A**.
-4. The note box stays open after you release ⌘, so just type.
+4. The note box stays open after you release ⌘, so just type. One note for several elements? Keep the box open and **⌘+click** more of them (again to drop one); the JSON then lists them under `elements`.
 5. Type what you want changed and press **Enter** to save (**Shift+Enter** for a newline). Check **Attach element screenshot** if visual context helps.
 6. Picked a wrapper or child by mistake? Press **↑ / ↓** to walk up to the parent or down to a child element (use **⌥↑ / ⌥↓** when the text box has content).
 7. Queue up as many UI tweaks across your page as you want. Click **N items** on the toolbar to review, edit, or delete drafts before sending.
@@ -193,6 +193,7 @@ Add `.page-annotator/` to your `.gitignore`:
 | --- | --- |
 | **⌘⇧2** / **Ctrl+Shift+2** | Show / hide the annotator toolbar (state persisted in `localStorage`) |
 | Hold **⌘** / **Ctrl** | Annotate while held: hover to highlight, click to pick |
+| **⌘+Click** / **Ctrl+Click** with the note box open | Add / remove another element for the same note (**Shift+Click** in locked mode) |
 | **Alt+A** / **◎ Annotate** | Lock annotation mode on / off |
 | **⌘+Enter** / **Ctrl+Enter** | Send all queued annotations (in the note box: save, then send) |
 | **Right-click**, **Esc** | Exit annotation mode / close popover |
