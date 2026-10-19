@@ -75,7 +75,7 @@ npm install --save-dev /path/to/vite-plugin-page-annotator/packages/next
 
 After the package is published, install it by name with `npm install --save-dev next-page-annotator`.
 
-For the **App Router**, create `app/api/__annotator/[...path]/route.ts`:
+For the **App Router**, create `app/api/page-annotator/[...path]/route.ts`:
 
 ```ts
 import { createAnnotatorHandler } from 'next-page-annotator/server';
@@ -93,7 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-For the **Pages Router**, create `pages/api/__annotator/[...path].ts` and export `createPagesApiHandler()` from `next-page-annotator/server`. Add `.page-annotator/` to `.gitignore`, then run the Next.js dev server and press **⌘⇧2** (**Ctrl+Shift+2** on Windows/Linux) to show or hide the toolbar. See the [Next.js package guide](packages/next/README.md) for the full setup.
+For the **Pages Router**, create `pages/api/page-annotator/[...path].ts` and export `createPagesApiHandler()` from `next-page-annotator/server`. Add `.page-annotator/` to `.gitignore`, then run the Next.js dev server and press **⌘⇧2** (**Ctrl+Shift+2** on Windows/Linux) to show or hide the toolbar. See the [Next.js package guide](packages/next/README.md) for the full setup.
 
 ---
 

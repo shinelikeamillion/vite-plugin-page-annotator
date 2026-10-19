@@ -16,7 +16,7 @@ npm i -D next-page-annotator
 
 ### 2. Add the Route Handler (Next.js App Router)
 
-Create `app/api/__annotator/[...path]/route.ts`:
+Create `app/api/page-annotator/[...path]/route.ts`:
 
 ```ts
 import { createAnnotatorHandler } from 'next-page-annotator/server';
@@ -26,7 +26,7 @@ export const { GET, POST } = createAnnotatorHandler({
 });
 ```
 
-*(For Pages Router, create `pages/api/__annotator/[...path].ts` and export `createPagesApiHandler()`.)*
+*(For Pages Router, create `pages/api/page-annotator/[...path].ts` and export `createPagesApiHandler()`.)*
 
 ### 3. Mount in your Root Layout (`app/layout.tsx`)
 

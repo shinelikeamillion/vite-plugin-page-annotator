@@ -22,15 +22,15 @@ function historyAction(root, subPath, payload, lang) {
 }
 
 /**
- * Creates Next.js App Router handler (for `app/api/__annotator/[...path]/route.ts`)
+ * Creates Next.js App Router handler (for `app/api/page-annotator/[...path]/route.ts`)
  * @param {object} [options]
  * @param {string} [options.lang='en']
- * @param {string} [options.basePath='/api/__annotator']
+ * @param {string} [options.basePath='/api/page-annotator']
  */
 export function createAnnotatorHandler(options = {}) {
   const root = process.cwd();
   const lang = options.lang === 'zh' ? 'zh' : 'en';
-  const basePath = options.basePath || '/api/__annotator';
+  const basePath = options.basePath || '/api/page-annotator';
 
   async function handleGet(req, { params }) {
     const rawPath = await Promise.resolve(params?.path);
@@ -128,7 +128,7 @@ export function createAnnotatorHandler(options = {}) {
 }
 
 /**
- * Creates Next.js Pages Router API handler (for `pages/api/__annotator/[...path].ts`)
+ * Creates Next.js Pages Router API handler (for `pages/api/page-annotator/[...path].ts`)
  */
 export function createPagesApiHandler(options = {}) {
   const root = process.cwd();

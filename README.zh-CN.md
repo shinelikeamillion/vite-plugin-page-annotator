@@ -75,7 +75,7 @@ npm install --save-dev /path/to/vite-plugin-page-annotator/packages/next
 
 发布到 npm 后，再改用 `npm install --save-dev next-page-annotator` 按包名安装。
 
-**App Router**：创建 `app/api/__annotator/[...path]/route.ts`：
+**App Router**：创建 `app/api/page-annotator/[...path]/route.ts`：
 
 ```ts
 import { createAnnotatorHandler } from 'next-page-annotator/server';
@@ -93,7 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-**Pages Router**：创建 `pages/api/__annotator/[...path].ts`，并从 `next-page-annotator/server` 导出 `createPagesApiHandler()`。将 `.page-annotator/` 加入 `.gitignore`，启动 Next.js 开发服务器后，按 **⌘⇧2**（Windows/Linux 为 **Ctrl+Shift+2**）显示或隐藏工具栏。完整步骤见 [Next.js 包使用指南](packages/next/README.md)。
+**Pages Router**：创建 `pages/api/page-annotator/[...path].ts`，并从 `next-page-annotator/server` 导出 `createPagesApiHandler()`。将 `.page-annotator/` 加入 `.gitignore`，启动 Next.js 开发服务器后，按 **⌘⇧2**（Windows/Linux 为 **Ctrl+Shift+2**）显示或隐藏工具栏。完整步骤见 [Next.js 包使用指南](packages/next/README.md)。
 
 ---
 

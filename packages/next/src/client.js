@@ -3,7 +3,7 @@
 (() => {
   if (window.__pageAnnotator) return;
   const cfg = window.__PAGE_ANNOTATOR__ || {};
-  const ENDPOINT = cfg.endpoint || '/__annotator/submit';
+  const ENDPOINT = cfg.endpoint || '/api/page-annotator/submit';
   const STORAGE_KEY = 'page-annotator:draft';
   const SHOT_PREF_KEY = 'page-annotator:screenshot';
   const BAR_POS_KEY = 'page-annotator:bar-pos';
@@ -71,7 +71,7 @@
   const saveSettings = () => { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* storage off */ } };
   const t = (key, ...args) => { const v = (STRINGS[settings.lang] || STRINGS.en)[key]; return typeof v === 'function' ? v(...args) : v; };
   const promptFor = (lang) => settings.prompts[lang] || DEFAULT_PROMPTS[lang] || '';
-  const SCREENSHOT_LIB = cfg.screenshotLib || '/__annotator/vendor/modern-screenshot.js';
+  const SCREENSHOT_LIB = cfg.screenshotLib || '/api/page-annotator/vendor/modern-screenshot.js';
 
   const host = document.createElement('page-annotator');
   host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
@@ -1098,7 +1098,7 @@
   }
 
   // ---------- history tab ----------
-  const API_BASE = (cfg.endpoint || '/__annotator/submit').replace(/\/submit$/, '');
+  const API_BASE = (cfg.endpoint || '/api/page-annotator/submit').replace(/\/submit$/, '');
   const histBox = $('.hist'), histRows = $('.hist-rows'), setBody = $('.set-body');
   let histFilter = 'all', histItems = [];
   /** ids picked in the history tab, for send again / delete */

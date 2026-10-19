@@ -29,9 +29,9 @@ const DEFAULT_PROMPTS = {
 /**
  * @param {object} props
  * @param {'en' | 'zh'} [props.lang='en']
- * @param {string} [props.basePath='/api/__annotator']
+ * @param {string} [props.basePath='/api/page-annotator']
  */
-export function PageAnnotator({ lang = 'en', basePath = '/api/__annotator' }) {
+export function PageAnnotator({ lang = 'en', basePath = '/api/page-annotator' }) {
   // Only execute in development environment in browser
   const isDev = process.env.NODE_ENV !== 'production';
 
